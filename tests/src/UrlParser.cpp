@@ -10,15 +10,8 @@ using namespace chatterino;
 TEST(UrlParser, parsesPlainUsernames)
 {
     const QStringList validUsernames = {
-        "xqc",
-        "trainwreckstv",
-        "amouranth",
-        "destiny",
-        "asmongold",
-        "user_name",
-        "user123",
-        "a",
-        "abc",
+        "xqc",       "trainwreckstv", "amouranth", "destiny", "asmongold",
+        "user_name", "user123",       "a",         "abc",
     };
 
     for (const auto &username : validUsernames)
@@ -100,7 +93,8 @@ TEST(UrlParser, normalizesSlug)
 {
     EXPECT_EQ(UrlParser::normalizeChannelSlug("XQC"), "xqc");
     EXPECT_EQ(UrlParser::normalizeChannelSlug("  xqc  "), "xqc");
-    EXPECT_EQ(UrlParser::normalizeChannelSlug("TrainwrecksTv"), "trainwreckstv");
+    EXPECT_EQ(UrlParser::normalizeChannelSlug("TrainwrecksTv"),
+              "trainwreckstv");
 }
 
 TEST(UrlParser, detectsKickUrls)
@@ -115,4 +109,3 @@ TEST(UrlParser, detectsKickUrls)
     EXPECT_FALSE(UrlParser::isKickUrl("twitch.tv/xqc"));
     EXPECT_FALSE(UrlParser::isKickUrl("youtube.com/xqc"));
 }
-

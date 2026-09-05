@@ -77,6 +77,14 @@ set(SOURCE_FILES
 
         controllers/commands/builtin/chatterino/Debugging.cpp
         controllers/commands/builtin/chatterino/Debugging.hpp
+        controllers/commands/builtin/twitch/ChannelPoints.cpp
+        controllers/commands/builtin/twitch/ChannelPoints.hpp
+        controllers/commands/builtin/twitch/Pin.cpp
+        controllers/commands/builtin/twitch/Pin.hpp
+        providers/twitch/api/TwitchGql.cpp
+        providers/twitch/api/TwitchGql.hpp
+        controllers/commands/builtin/kick/ModerationActions.cpp
+        controllers/commands/builtin/kick/ModerationActions.hpp
         controllers/commands/builtin/Misc.cpp
         controllers/commands/builtin/Misc.hpp
         controllers/commands/builtin/twitch/AddModerator.cpp
@@ -470,6 +478,14 @@ set(SOURCE_FILES
         providers/twitch/TwitchIrc.cpp
         providers/twitch/TwitchIrc.hpp
         providers/twitch/TwitchIrcServer.cpp
+        providers/twitch/TwitchNameHistory.cpp
+        providers/twitch/TwitchNameHistory.hpp
+        providers/twitch/TwitchPinnedChat.cpp
+        providers/twitch/TwitchPinnedChat.hpp
+        providers/twitch/TwitchPoll.cpp
+        providers/twitch/TwitchPoll.hpp
+        providers/twitch/TwitchPrediction.cpp
+        providers/twitch/TwitchPrediction.hpp
         providers/twitch/TwitchIrcServer.hpp
         providers/twitch/TwitchUser.cpp
         providers/twitch/TwitchUser.hpp
@@ -498,6 +514,10 @@ set(SOURCE_FILES
         providers/twitch/pubsubmessages/Listen.cpp
         providers/twitch/pubsubmessages/Listen.hpp
         providers/twitch/pubsubmessages/Message.hpp
+        providers/twitch/pubsubmessages/PinnedChat.cpp
+        providers/twitch/pubsubmessages/PinnedChat.hpp
+        providers/twitch/pubsubmessages/PredictionEvent.cpp
+        providers/twitch/pubsubmessages/PredictionEvent.hpp
         providers/twitch/pubsubmessages/Unlisten.cpp
         providers/twitch/pubsubmessages/Unlisten.hpp
 
@@ -513,8 +533,12 @@ set(SOURCE_FILES
         providers/kick/KickAccountManager.hpp
         providers/kick/KickApi.cpp
         providers/kick/KickApi.hpp
+        providers/kick/KickBadges.cpp
+        providers/kick/KickBadges.hpp
         providers/kick/KickChannel.cpp
         providers/kick/KickChannel.hpp
+        providers/kick/KickChatServer.cpp
+        providers/kick/KickChatServer.hpp
         providers/kick/KickEmotes.cpp
         providers/kick/KickEmotes.hpp
         providers/kick/KickMessage.cpp
@@ -523,6 +547,20 @@ set(SOURCE_FILES
         providers/kick/KickOAuthFlow.hpp
         providers/kick/KickWebSocket.cpp
         providers/kick/KickWebSocket.hpp
+        providers/youtube/YouTubeAccount.cpp
+        providers/youtube/YouTubeAccount.hpp
+        providers/youtube/YouTubeApi.cpp
+        providers/youtube/YouTubeApi.hpp
+        providers/youtube/YouTubeChannel.cpp
+        providers/youtube/YouTubeChannel.hpp
+        providers/youtube/YouTubeChatServer.cpp
+        providers/youtube/YouTubeChatServer.hpp
+        providers/youtube/YouTubeInnerTube.cpp
+        providers/youtube/YouTubeInnerTube.hpp
+        providers/youtube/YouTubeMessage.cpp
+        providers/youtube/YouTubeOAuthFlow.cpp
+        providers/youtube/YouTubeOAuthFlow.hpp
+        providers/youtube/YouTubeMessage.hpp
 
         singletons/CrashHandler.cpp
         singletons/CrashHandler.hpp
@@ -779,6 +817,14 @@ set(SOURCE_FILES
         widgets/helper/IconDelegate.hpp
         widgets/helper/InvisibleSizeGrip.cpp
         widgets/helper/InvisibleSizeGrip.hpp
+        widgets/helper/PinnedMessageBanner.cpp
+        widgets/helper/PinnedMessageBanner.hpp
+        widgets/helper/PollBanner.cpp
+        widgets/helper/PollBanner.hpp
+        widgets/helper/PredictionBanner.cpp
+        widgets/helper/PredictionBanner.hpp
+        widgets/helper/SplitBanners.cpp
+        widgets/helper/SplitBanners.hpp
         widgets/helper/MessageView.cpp
         widgets/helper/MessageView.hpp
         widgets/helper/NotebookTab.cpp
@@ -818,6 +864,21 @@ set(SOURCE_FILES
 
         widgets/settingspages/AboutPage.cpp
         widgets/settingspages/AboutPage.hpp
+        widgets/settingspages/AdvancedPage.cpp
+        widgets/settingspages/AdvancedPage.hpp
+        widgets/settingspages/AppearancePage.cpp
+        widgets/settingspages/AppearancePage.hpp
+        widgets/settingspages/ChatPage.cpp
+        widgets/settingspages/ChatPage.hpp
+        widgets/settingspages/EmotesPage.cpp
+        widgets/settingspages/EmotesPage.hpp
+        widgets/settingspages/PlatformsPage.cpp
+        widgets/settingspages/PlatformsPage.hpp
+        widgets/settingspages/ScrollableSettingsPage.cpp
+        widgets/settingspages/ScrollableSettingsPage.hpp
+        widgets/settingspages/StreamerModePage.cpp
+        widgets/settingspages/StreamerModePage.hpp
+        widgets/settingspages/SettingsPageCommon.hpp
         widgets/settingspages/AccountsPage.cpp
         widgets/settingspages/AccountsPage.hpp
         widgets/settingspages/CommandPage.cpp

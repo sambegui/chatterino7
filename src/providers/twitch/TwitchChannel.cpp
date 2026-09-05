@@ -1564,6 +1564,22 @@ void TwitchChannel::refreshPubSub()
 
     getApp()->getTwitchPubSub()->listenToChannelPointRewards(roomId);
 
+    if (getSettings()->enablePinnedMessages)
+    {
+        getApp()->getTwitchPubSub()->listenToPinnedChatUpdates(roomId);
+        this->refreshPinnedMessage();
+    }
+
+    if (getSettings()->enablePolls)
+    {
+        getApp()->getTwitchPubSub()->listenToPolls(roomId);
+    }
+
+    if (getSettings()->enablePredictions)
+    {
+        getApp()->getTwitchPubSub()->listenToPredictions(roomId);
+    }
+
     if (currentAccount->isAnon())
     {
         this->eventSubChannelModerateHandle.reset();
@@ -2512,6 +2528,149 @@ void TwitchChannel::upsertPersonalSeventvEmotes(
     cloned->elements = std::move(elements);
 
     this->replaceMessage(message.value(), cloned);
+}
+
+std::optional<TwitchPinnedMessage> TwitchChannel::pinnedMessage() const
+{
+    return *this->pinnedMessage_.accessConst();
+}
+
+void TwitchChannel::setPinnedMessage(std::optional<TwitchPinnedMessage> pin)
+{
+    {
+        auto locked = this->pinnedMessage_.access();
+        if (locked->has_value() == pin.has_value() &&
+            (!pin || (*locked)->pinId == pin->pinId))
+        {
+            // same pin, nothing for listeners to redraw
+            if (!pin || (*locked)->text == pin->text)
+            {
+                return;
+            }
+        }
+        *locked = std::move(pin);
+    }
+
+    this->pinnedMessageChanged.invoke();
+}
+
+void TwitchChannel::refreshPinnedMessage()
+{
+    if (!getSettings()->enablePinnedMessages)
+    {
+        return;
+    }
+
+    auto roomId = this->roomId();
+    if (roomId.isEmpty())
+    {
+        return;
+    }
+
+    fetchTwitchPinnedChat(
+        roomId,
+        [weak{this->weak_from_this()}](std::optional<TwitchPinnedMessage> pin) {
+            auto shared = std::dynamic_pointer_cast<TwitchChannel>(weak.lock());
+            if (!shared)
+            {
+                return;
+            }
+            shared->setPinnedMessage(std::move(pin));
+        },
+        [weak{this->weak_from_this()}](const QString &error) {
+            auto shared = std::dynamic_pointer_cast<TwitchChannel>(weak.lock());
+            if (!shared)
+            {
+                return;
+            }
+            qCDebug(chatterinoTwitch)
+                << "Failed to fetch the pinned message for" << shared->getName()
+                << ":" << error;
+        });
+}
+
+void TwitchChannel::handlePinnedChatUpdate(const QJsonObject &payload)
+{
+    if (!getSettings()->enablePinnedMessages)
+    {
+        return;
+    }
+
+    auto type = payload.value("type").toString();
+    if (type == "unpin-message")
+    {
+        this->setPinnedMessage(std::nullopt);
+        return;
+    }
+
+    // pin-message and update-message only carry a partial message, so re-read
+    this->refreshPinnedMessage();
+}
+
+std::optional<TwitchPoll> TwitchChannel::poll() const
+{
+    return *this->poll_.accessConst();
+}
+
+void TwitchChannel::handlePollUpdate(const QJsonObject &payload)
+{
+    if (!getSettings()->enablePolls)
+    {
+        return;
+    }
+
+    auto poll = parseTwitchPoll(payload);
+    auto isEnd = payload.value("type").toString() == "POLL_END";
+
+    {
+        auto locked = this->poll_.access();
+
+        // an end event without a body means whatever was running has finished
+        if (!poll && isEnd)
+        {
+            if (!locked->has_value())
+            {
+                return;
+            }
+            (*locked)->status = QStringLiteral("COMPLETED");
+        }
+        else if (!poll)
+        {
+            return;
+        }
+        else
+        {
+            *locked = std::move(poll);
+        }
+    }
+
+    this->pollChanged.invoke();
+}
+
+std::optional<TwitchPrediction> TwitchChannel::prediction() const
+{
+    return *this->prediction_.accessConst();
+}
+
+void TwitchChannel::handlePredictionUpdate(const QJsonObject &payload)
+{
+    if (!getSettings()->enablePredictions)
+    {
+        return;
+    }
+
+    auto prediction = parseTwitchPrediction(payload);
+    if (!prediction)
+    {
+        return;
+    }
+
+    {
+        auto locked = this->prediction_.access();
+        *locked = std::move(prediction);
+    }
+
+    this->predictionChanged.invoke();
 }
 
 }  // namespace chatterino

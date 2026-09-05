@@ -1,14 +1,14 @@
 #pragma once
 
+#include <QJsonObject>
+#include <QString>
+#include <QStringList>
+
 #include <functional>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <unordered_map>
-
-#include <QJsonObject>
-#include <QString>
-#include <QStringList>
 
 namespace chatterino {
 
@@ -65,8 +65,7 @@ private:
     /// Cache for Kick user ID -> 7TV connection object
     /// std::nullopt means the user was not found (404)
     /// QJsonObject contains the connection data if found
-    struct KickUserCacheEntry
-    {
+    struct KickUserCacheEntry {
         std::optional<QJsonObject> data;  // nullopt = 404/not found
         bool pending = false;             // Request is in flight
     };

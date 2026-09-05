@@ -71,4 +71,3 @@ TEST(KickApiEndpoints, baseUrlIsCorrect)
 
     EXPECT_EQ(actualBase, expectedBase);
 }
-

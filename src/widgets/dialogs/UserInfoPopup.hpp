@@ -66,6 +66,15 @@ private:
 
     void updateAvatarUrl();
 
+    /// Whether the usercard is showing the account we are logged in as.
+    [[nodiscard]] bool isMyself() const;
+
+    void showNameHistoryMenu();
+    void updateNameHistoryButton();
+
+    void updateLoadMoreButton();
+    void loadMoreMessages();
+
     bool isMod_{};
     bool isBroadcaster_{};
 
@@ -73,6 +82,10 @@ private:
 
     QString userName_;
     QString userId_;
+    /// Paging state for the mod-log message history.
+    QString messagesCursor_;
+    bool messagesHaveNextPage_ = true;
+    bool messagesLoading_ = false;
     QString avatarUrl_;
     QString helixAvatarUrl_;
     QString seventvAvatarUrl_;
@@ -118,6 +131,8 @@ private:
         ChannelView *latestMessages = nullptr;
 
         LabelButton *usercardLabel = nullptr;
+        LabelButton *nameHistory = nullptr;
+        LabelButton *loadMore = nullptr;
         LabelButton *switchAvatars = nullptr;
     } ui_;
 

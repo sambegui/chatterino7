@@ -135,4 +135,3 @@ TEST(KickBadge, parsesFromJson)
     EXPECT_EQ(badge.text, "12 Months");
     EXPECT_EQ(badge.count, 12);
 }
-

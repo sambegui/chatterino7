@@ -78,4 +78,3 @@ TEST(KickOAuthFlowTokens, canSetValues)
     EXPECT_EQ(tokens.scope, "chat:write user:read");
     EXPECT_TRUE(tokens.expiresAt.isValid());
 }
-

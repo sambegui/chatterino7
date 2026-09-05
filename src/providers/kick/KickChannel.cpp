@@ -13,6 +13,8 @@
 #include "providers/ffz/FfzEmotes.hpp"
 #include "providers/kick/KickAccount.hpp"
 #include "providers/kick/KickApi.hpp"
+#include "providers/kick/KickBadges.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/kick/KickEmotes.hpp"
 #include "providers/kick/KickWebSocket.hpp"
 #include "providers/seventv/SeventvAPI.hpp"
@@ -27,6 +29,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <memory>
 
 namespace chatterino {
 
@@ -46,10 +49,9 @@ KickChannel::~KickChannel()
 
 void KickChannel::sendMessage(const QString &message)
 {
-    // Check for empty message (matches Twitch behavior)
+    // a handled command sends nothing, so an empty message is not an error
     if (message.trimmed().isEmpty())
     {
-        this->addSystemMessage(translateKickError(KickError::MissingText));
         return;
     }
 
@@ -119,8 +121,37 @@ void KickChannel::sendMessage(const QString &message)
 
 bool KickChannel::isMod() const
 {
-    // TODO: Implement mod status checking
-    return false;
+    return this->userRole_ == "moderator";
+}
+
+bool KickChannel::isVip() const
+{
+    return this->userRole_ == "vip";
+}
+
+bool KickChannel::isBroadcaster() const
+{
+    if (this->userRole_ == "broadcaster")
+    {
+        return true;
+    }
+
+    // the role field is only returned for an authenticated caller, and the
+    // unofficial endpoint does not always honour our token, so fall back to
+    // the one case we can always be sure of: this is your own channel
+    return this->account_ != nullptr && this->account_->isAuthenticated() &&
+           this->account_->getUserName().compare(this->channelSlug_,
+                                                 Qt::CaseInsensitive) == 0;
+}
+
+bool KickChannel::hasModRights() const
+{
+    return this->isMod() || this->isBroadcaster();
+}
+
+const KickApi::RoomModes &KickChannel::roomModes() const
+{
+    return this->roomModes_;
 }
 
 bool KickChannel::canSendMessage() const
@@ -137,6 +168,11 @@ bool KickChannel::isLive() const
 void KickChannel::setApi(std::shared_ptr<KickApi> api)
 {
     this->api_ = std::move(api);
+}
+
+std::shared_ptr<KickApi> KickChannel::api() const
+{
+    return this->api_;
 }
 
 void KickChannel::setAccount(std::shared_ptr<KickAccount> account)
@@ -164,56 +200,38 @@ void KickChannel::connect()
 
     this->setConnectionState(KickConnectionState::Connecting);
 
-    // Initialize WebSocket if needed
-    if (!this->webSocket_)
+    // every Kick channel shares one socket, so this may already be up
+    auto *server = getApp()->getKickChatServer();
+    server->ensureConnected();
+    if (server->isConnected())
     {
-        this->webSocket_ = std::make_unique<KickWebSocket>();
-
-        // Connect signals
-        std::ignore = this->webSocket_->messageReceived.connect(
-            [this](const KickMessage &msg) {
-                this->onMessageReceived(msg);
-            });
-
-        std::ignore = this->webSocket_->connectionStateChanged.connect(
-            [this](bool connected) {
-                if (connected)
-                {
-                    // Connection established, now resolve channel and subscribe
-                    this->resolveAndSubscribe();
-                }
-                else
-                {
-                    this->setConnectionState(KickConnectionState::Disconnected);
-                    this->addSystemMessage("Disconnected from Kick chat");
-                }
-            });
-
-        std::ignore =
-            this->webSocket_->errorOccurred.connect([this](const QString &) {
-                this->addSystemMessage(
-                    translateKickError(KickError::ConnectionFailed));
-                this->handleConnectionError();
-            });
+        this->onServerConnected();
     }
+}
 
-    // Connect to WebSocket
-    if (!this->webSocket_->connect())
-    {
-        this->setConnectionState(KickConnectionState::Failed);
-        this->addSystemMessage(translateKickError(KickError::ConnectionFailed));
-    }
+void KickChannel::onServerConnected()
+{
+    this->resolveAndSubscribe();
+}
+
+void KickChannel::onServerDisconnected()
+{
+    this->setConnectionState(KickConnectionState::Disconnected);
+    this->addSystemMessage("Disconnected from Kick chat");
+}
+
+void KickChannel::onServerError()
+{
+    this->addSystemMessage(translateKickError(KickError::ConnectionFailed));
+    this->handleConnectionError();
 }
 
 void KickChannel::disconnect()
 {
-    if (this->webSocket_)
+    // runs from the destructor too, which can outlive the Application
+    if (auto *app = tryGetApp())
     {
-        if (this->chatroomId_ != 0)
-        {
-            this->webSocket_->unsubscribe(this->chatroomId_);
-        }
-        this->webSocket_->disconnect();
+        app->getKickChatServer()->leave(this);
     }
     this->setConnectionState(KickConnectionState::Disconnected);
 }
@@ -225,8 +243,11 @@ void KickChannel::reconnect()
     // Reset reconnection attempts on manual reconnect
     this->reconnectAttempts_ = 0;
 
-    QTimer::singleShot(1000, [this] {
-        this->connect();
+    QTimer::singleShot(1000, [weak{this->weak_from_this()}] {
+        if (auto self = std::dynamic_pointer_cast<KickChannel>(weak.lock()))
+        {
+            self->connect();
+        }
     });
 }
 
@@ -459,11 +480,13 @@ void KickChannel::fetchAvailableEmotes(
                         // Include emote if:
                         // 1. It's not subscriber-only, OR
                         // 2. User has subscriber access
-                        if (!emoteInfo.subscribersOnly || this->hasSubscriberAccess_)
+                        if (!emoteInfo.subscribersOnly ||
+                            this->hasSubscriberAccess_)
                         {
                             // Create emote URL
                             QString emoteUrl =
-                                QString("https://files.kick.com/emotes/%1/fullsize")
+                                QString(
+                                    "https://files.kick.com/emotes/%1/fullsize")
                                     .arg(emoteInfo.id);
 
                             // Create the emote with proper sizing
@@ -472,7 +495,8 @@ void KickChannel::fetchAvailableEmotes(
                                 EmoteName{emoteInfo.name},
                                 ImageSet{Image::fromUrl({emoteUrl}, 1.0,
                                                         KICK_EMOTE_BASE_SIZE)},
-                                Tooltip{QString("%1 Kick Emote").arg(emoteInfo.name)},
+                                Tooltip{QString("%1 Kick Emote")
+                                            .arg(emoteInfo.name)},
                                 Url{emoteUrl},
                                 false,  // not zero-width
                                 EmoteId{QString::number(emoteInfo.id)},
@@ -524,8 +548,11 @@ void KickChannel::onMessageReceived(const KickMessage &kickMessage)
     // Add badges (if any)
     for (const auto &badge : kickMessage.sender.identity.badges)
     {
-        // TODO: Add proper native Kick badge rendering
-        Q_UNUSED(badge);
+        auto [emote, flag] = KickBadges::lookup(badge.type);
+        if (emote)
+        {
+            builder.emplace<BadgeElement>(emote, flag);
+        }
     }
 
     // Load 7TV cosmetics (paints, badges) for this user if we haven't already
@@ -671,6 +698,19 @@ void KickChannel::resolveAndSubscribe()
 
             this->chatroomId_ = info.chatroomId;
             this->broadcasterUserId_ = info.broadcasterUserId;
+            this->userRole_ = info.userRole;
+
+            if (this->roomModes_.subscribersOnly !=
+                    info.roomModes.subscribersOnly ||
+                this->roomModes_.emotesOnly != info.roomModes.emotesOnly ||
+                this->roomModes_.slowModeInterval !=
+                    info.roomModes.slowModeInterval ||
+                this->roomModes_.followersOnlyDuration !=
+                    info.roomModes.followersOnlyDuration)
+            {
+                this->roomModes_ = info.roomModes;
+                this->roomModesChanged.invoke();
+            }
 
             // Update live status
             bool wasLive = this->isLive_;
@@ -689,9 +729,12 @@ void KickChannel::resolveAndSubscribe()
                 << "broadcasterUserId=" << this->broadcasterUserId_
                 << "isLive=" << this->isLive_;
 
-            if (this->webSocket_ && this->webSocket_->isConnected())
+            auto *server = getApp()->getKickChatServer();
+            if (server->isConnected())
             {
-                this->webSocket_->subscribe(this->chatroomId_);
+                server->subscribeChatroom(
+                    this->chatroomId_, std::dynamic_pointer_cast<KickChannel>(
+                                           this->shared_from_this()));
                 this->setConnectionState(KickConnectionState::Connected);
 
                 QString statusMsg = QString("Connected to Kick channel: %1")
@@ -756,20 +799,20 @@ void KickChannel::scheduleReconnect()
             .arg(this->reconnectAttempts_)
             .arg(MAX_RECONNECT_ATTEMPTS));
 
-    QTimer::singleShot(delayMs, [this] {
-        if (this->connectionState_ == KickConnectionState::Reconnecting)
+    QTimer::singleShot(delayMs, [weak{this->weak_from_this()}] {
+        auto self = std::dynamic_pointer_cast<KickChannel>(weak.lock());
+        if (!self)
         {
-            this->addSystemMessage(QStringLiteral("Reconnecting..."));
-            this->disconnect();
-            this->connect();
+            return;
+        }
+
+        if (self->connectionState_ == KickConnectionState::Reconnecting)
+        {
+            self->addSystemMessage(QStringLiteral("Reconnecting..."));
+            self->disconnect();
+            self->connect();
         }
     });
-}
-
-void KickChannel::addSystemMessage(const QString &text)
-{
-    auto msg = makeSystemMessage(text);
-    this->addMessage(msg, MessageContext::Original);
 }
 
 std::optional<EmotePtr> KickChannel::findThirdPartyEmote(

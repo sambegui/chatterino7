@@ -58,6 +58,7 @@ A new merged view will open showing messages from both platforms with platform i
 When viewing a merged channel, you can choose where to send your messages:
 
 1. Look for the platform selection buttons above the message input:
+
    - **Both** - Send to both Twitch and Kick
    - **Twitch** - Send only to Twitch
    - **Kick** - Send only to Kick
@@ -85,19 +86,23 @@ If a send fails, an error message will appear in chat explaining the reason.
 ## Troubleshooting
 
 ### "Kick integration is disabled" error
+
 Enable Kick integration in Settings → General → Kick Integration.
 
 ### Can't send messages to Kick
+
 1. Ensure you're logged into Kick (check Settings → General → Kick Integration)
 2. Verify your access hasn't expired (try logging in again)
 3. Check that you're not rate-limited (Kick allows 3 messages per second)
 
 ### Channel shows "Connection Failed"
+
 1. Check your internet connection
 2. Verify the channel name is correct
 3. Try reconnecting via the context menu
 
 ### Messages not appearing
+
 1. Check that the channel is connected (look for "[Connected]" in the header)
 2. Ensure the chat is active on Kick.com
 3. Try disconnecting and reconnecting
@@ -105,12 +110,15 @@ Enable Kick integration in Settings → General → Kick Integration.
 ## Technical Details
 
 ### Authentication
+
 Kick authentication uses OAuth 2.1 with PKCE for secure browser-based login. Your credentials are stored locally and encrypted.
 
 ### Real-time Messaging
+
 Kick chat uses a Pusher-compatible WebSocket protocol for real-time message delivery.
 
 ### Rate Limits
+
 - Kick limits chat messages to approximately 3 per second
 - Exceeding this limit will result in a "Rate limited" error
 - Wait for the countdown to complete before sending more messages
@@ -118,4 +126,3 @@ Kick chat uses a Pusher-compatible WebSocket protocol for real-time message deli
 ---
 
 For bug reports or feature requests, please visit the [Chatterino7 GitHub repository](https://github.com/SevenTV/chatterino7).
-

@@ -670,7 +670,8 @@ void EmotePopup::filterTwitchEmotes(std::shared_ptr<Channel> searchChannel,
         }
         if (!ffzChannelEmotes.empty())
         {
-            addEmotes(*searchChannel, ffzChannelEmotes, "FrankerFaceZ (Channel)");
+            addEmotes(*searchChannel, ffzChannelEmotes,
+                      "FrankerFaceZ (Channel)");
         }
         if (!seventvChannelEmotes.empty())
         {
@@ -708,7 +709,8 @@ void EmotePopup::filterTwitchEmotes(std::shared_ptr<Channel> searchChannel,
             auto seventvChannelEmotes = filterEmoteMap(searchText, seventv);
             if (!seventvChannelEmotes.empty())
             {
-                addEmotes(*searchChannel, seventvChannelEmotes, "7TV (Channel)");
+                addEmotes(*searchChannel, seventvChannelEmotes,
+                          "7TV (Channel)");
             }
         }
     }
@@ -781,7 +783,8 @@ void EmotePopup::filterEmotes(const QString &searchText)
             auto seventvChannelEmotes = filterEmoteMap(searchText, seventv);
             if (!seventvChannelEmotes.empty())
             {
-                addEmotes(*searchChannel, seventvChannelEmotes, "7TV (Channel)");
+                addEmotes(*searchChannel, seventvChannelEmotes,
+                          "7TV (Channel)");
             }
         }
     }

@@ -114,8 +114,8 @@ KickMessage KickMessage::fromJson(const QJsonObject &json)
     msg.chatroomId = json["chatroom_id"].toInt();
     msg.content = json["content"].toString();
     msg.type = json["type"].toString();
-    msg.createdAt = QDateTime::fromString(json["created_at"].toString(),
-                                          Qt::ISODateWithMs);
+    msg.createdAt =
+        QDateTime::fromString(json["created_at"].toString(), Qt::ISODateWithMs);
     msg.sender = KickSender::fromJson(json["sender"].toObject());
 
     // Parse emotes array
@@ -135,4 +135,3 @@ bool KickMessage::isChatMessage() const
 }
 
 }  // namespace chatterino
-

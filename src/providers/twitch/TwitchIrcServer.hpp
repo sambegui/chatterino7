@@ -9,6 +9,7 @@
 #include <IrcMessage>
 #include <pajlada/signals/signal.hpp>
 #include <pajlada/signals/signalholder.hpp>
+#include <QJsonObject>
 
 #include <chrono>
 #include <functional>
@@ -142,6 +143,12 @@ public:
     void open(ConnectionType type);
 
 private:
+    /// Dispatches a PubSub event to the channel named by its topic suffix.
+    void forwardToChannelByTopic(
+        QLatin1StringView prefix, const QJsonObject &payload,
+        const std::function<void(TwitchChannel *, const QJsonObject &)>
+            &handler);
+
     Atomic<QString> lastUserThatWhisperedMe;
 
     const ChannelPtr whispersChannel;

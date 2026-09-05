@@ -10,6 +10,9 @@
 #include "providers/ffz/FfzEmotes.hpp"
 #include "providers/twitch/eventsub/SubscriptionHandle.hpp"
 #include "providers/twitch/TwitchEmotes.hpp"
+#include "providers/twitch/TwitchPinnedChat.hpp"
+#include "providers/twitch/TwitchPoll.hpp"
+#include "providers/twitch/TwitchPrediction.hpp"
 #include "util/QStringHash.hpp"
 #include "util/ThreadGuard.hpp"
 
@@ -316,6 +319,33 @@ public:
 
     pajlada::Signals::NoArgSignal roomModesChanged;
 
+    /// Fires whenever the channel's pinned message appears, changes or clears.
+    pajlada::Signals::NoArgSignal pinnedMessageChanged;
+
+    /// The message currently pinned in this channel, if any.
+    std::optional<TwitchPinnedMessage> pinnedMessage() const;
+
+    /// Applies a pinned-chat-updates-v1 event.
+    void handlePinnedChatUpdate(const QJsonObject &payload);
+
+    /// Fires whenever the channel's poll appears, changes or clears.
+    pajlada::Signals::NoArgSignal pollChanged;
+
+    /// The poll running in this channel, if any.
+    std::optional<TwitchPoll> poll() const;
+
+    /// Applies a polls.{channelID} event.
+    void handlePollUpdate(const QJsonObject &payload);
+
+    /// Fires whenever the channel's prediction appears, changes or clears.
+    pajlada::Signals::NoArgSignal predictionChanged;
+
+    /// The prediction running in this channel, if any.
+    std::optional<TwitchPrediction> prediction() const;
+
+    /// Applies a predictions-channel-v1.{channelID} event.
+    void handlePredictionUpdate(const QJsonObject &payload);
+
     // Channel point rewards
     void addQueuedRedemption(const QString &rewardId,
                              const QString &originalContent,
@@ -368,6 +398,11 @@ private:
     };
 
     void refreshPubSub();
+
+    /// Re-reads the pinned message from Twitch. The PubSub event only signals
+    /// that something changed, not what.
+    void refreshPinnedMessage();
+    void setPinnedMessage(std::optional<TwitchPinnedMessage> pin);
     void refreshChatters();
     void refreshBadges();
     void refreshCheerEmotes();
@@ -457,6 +492,9 @@ private:
     int chatterCount_{};
     UniqueAccess<StreamStatus> streamStatus_;
     UniqueAccess<RoomModes> roomModes;
+    UniqueAccess<std::optional<TwitchPinnedMessage>> pinnedMessage_;
+    UniqueAccess<std::optional<TwitchPoll>> poll_;
+    UniqueAccess<std::optional<TwitchPrediction>> prediction_;
     bool disconnected_{};
     std::optional<std::chrono::time_point<std::chrono::system_clock>>
         lastConnectedAt_{};

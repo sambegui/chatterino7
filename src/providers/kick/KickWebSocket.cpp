@@ -135,7 +135,8 @@ void KickWebSocket::onPingTimeout()
 void KickWebSocket::parseMessage(const QString &rawMessage)
 {
     QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(rawMessage.toUtf8(), &parseError);
+    QJsonDocument doc =
+        QJsonDocument::fromJson(rawMessage.toUtf8(), &parseError);
 
     if (parseError.error != QJsonParseError::NoError)
     {
@@ -273,4 +274,3 @@ void KickWebSocket::sendPusherMessage(const QString &event,
 }
 
 }  // namespace chatterino
-

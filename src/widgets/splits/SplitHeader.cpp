@@ -1,6 +1,7 @@
 #include "widgets/splits/SplitHeader.hpp"
 
 #include "Application.hpp"
+#include "channels/MergedChannel.hpp"
 #include "common/network/NetworkCommon.hpp"
 #include "common/network/NetworkRequest.hpp"
 #include "common/network/NetworkResult.hpp"
@@ -10,21 +11,21 @@
 #include "controllers/hotkeys/HotkeyCategory.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
 #include "controllers/notifications/NotificationController.hpp"
-#include "channels/MergedChannel.hpp"
 #include "providers/kick/KickChannel.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
-#include "widgets/dialogs/MergeChannelDialog.hpp"
 #include "singletons/Settings.hpp"
 #include "singletons/StreamerMode.hpp"
 #include "singletons/Theme.hpp"
 #include "singletons/WindowManager.hpp"
+#include "util/FormatTime.hpp"
 #include "util/Helpers.hpp"
 #include "util/LayoutHelper.hpp"
 #include "widgets/buttons/DrawnButton.hpp"
 #include "widgets/buttons/LabelButton.hpp"
 #include "widgets/buttons/SvgButton.hpp"
+#include "widgets/dialogs/MergeChannelDialog.hpp"
 #include "widgets/dialogs/SettingsDialog.hpp"
 #include "widgets/helper/CommonTexts.hpp"
 #include "widgets/Label.hpp"
@@ -537,18 +538,33 @@ std::unique_ptr<QMenu> SplitHeader::createMainMenu()
     menu->addSeparator();
 
     // Merge with another channel (T058-T061)
-    if (getSettings()->enableKickIntegration)
+    if (getSettings()->enableKickIntegration ||
+        getSettings()->enableYouTubeIntegration)
     {
         auto *mergeAction = menu->addAction("Merge with...", this, [this]() {
-            auto *dialog = new MergeChannelDialog(
-                this->split_->getChannel(), this);
+            auto *dialog =
+                new MergeChannelDialog(this->split_->getChannel(), this);
 
             // Single view (combined) - creates a MergedChannel
             dialog->setOnMerge([this](ChannelPtr source, ChannelPtr target) {
+                // Merging into a split that is already merged adds a third
+                // platform to it. Wrapping it in another MergedChannel would
+                // nest a merge inside a merge, which loses the per-platform
+                // send routing and the platform badges.
+                if (auto existing =
+                        std::dynamic_pointer_cast<MergedChannel>(source))
+                {
+                    existing->addSourceChannel(target);
+                    this->split_->setChannel(
+                        IndirectChannel(existing, Channel::Type::Merged));
+                    return;
+                }
+
                 // Create merged channel
                 std::vector<ChannelPtr> sources = {source, target};
                 auto mergedChannel = std::make_shared<MergedChannel>(
-                    QString("%1 + %2").arg(source->getName(), target->getName()),
+                    QString("%1 + %2").arg(source->getName(),
+                                           target->getName()),
                     sources);
 
                 // Replace current split with merged channel
@@ -557,20 +573,24 @@ std::unique_ptr<QMenu> SplitHeader::createMainMenu()
             });
 
             // Split view (side-by-side) - opens target in new split
-            dialog->setOnSplitView([this](ChannelPtr source, ChannelPtr target) {
-                Q_UNUSED(source);
-                // Keep current channel, just open the target in a new split next to it
-                this->split_->openSplitRequested.invoke(target);
-            });
+            dialog->setOnSplitView(
+                [this](ChannelPtr source, ChannelPtr target) {
+                    Q_UNUSED(source);
+                    // Keep current channel, just open the target in a new split next to it
+                    this->split_->openSplitRequested.invoke(target);
+                });
 
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->show();
         });
 
-        // Enable merge only for Twitch or Kick channels
+        // Any single-platform channel can start a merge, and an existing
+        // merge can take another platform on top.
         auto channelType = this->split_->getChannel()->getType();
         mergeAction->setEnabled(channelType == Channel::Type::Twitch ||
-                                channelType == Channel::Type::Kick);
+                                channelType == Channel::Type::Kick ||
+                                channelType == Channel::Type::YouTube ||
+                                channelType == Channel::Type::Merged);
 
         // T099: Unmerge option for merged channels
         if (channelType == Channel::Type::Merged)
@@ -859,6 +879,42 @@ void SplitHeader::updateRoomModes()
 
         // Update the mode button menu actions
     }
+    else if (auto *kickChannel =
+                 dynamic_cast<KickChannel *>(this->split_->getChannel().get()))
+    {
+        // Kick's modes are read only here, so the button is only a label
+        this->modeButton_->setEnabled(false);
+
+        const auto &modes = kickChannel->roomModes();
+        QStringList parts;
+        if (modes.subscribersOnly)
+        {
+            parts << "sub-only";
+        }
+        if (modes.emotesOnly)
+        {
+            parts << "emote-only";
+        }
+        if (modes.slowModeInterval > 0)
+        {
+            parts << QString("slow(%1s)").arg(modes.slowModeInterval);
+        }
+        if (modes.followersOnlyDuration > 0)
+        {
+            parts << QString("follow(%1)")
+                         .arg(formatTime(modes.followersOnlyDuration * 60));
+        }
+
+        if (parts.isEmpty())
+        {
+            this->modeButton_->hide();
+        }
+        else
+        {
+            this->modeButton_->setText(parts.join(", "));
+            this->modeButton_->show();
+        }
+    }
     else
     {
         this->modeButton_->hide();
@@ -1016,9 +1072,10 @@ void SplitHeader::updateChannelText()
                 break;
         }
         title = "Kick: " + title + statusText;
-        this->tooltipText_ = QString("Kick channel: %1\nStatus: %2")
-                                 .arg(kickChannel->getChannelSlug())
-                                 .arg(statusText.trimmed().mid(1, statusText.length() - 2));
+        this->tooltipText_ =
+            QString("Kick channel: %1\nStatus: %2")
+                .arg(kickChannel->getChannelSlug())
+                .arg(statusText.trimmed().mid(1, statusText.length() - 2));
     }
 
     if (!title.isEmpty() && !this->split_->getFilters().empty())

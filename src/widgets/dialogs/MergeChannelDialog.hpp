@@ -29,7 +29,8 @@ class MergeChannelDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit MergeChannelDialog(ChannelPtr sourceChannel, QWidget *parent = nullptr);
+    explicit MergeChannelDialog(ChannelPtr sourceChannel,
+                                QWidget *parent = nullptr);
 
     /// Get the selected channel to merge with
     [[nodiscard]] ChannelPtr getSelectedChannel() const;
@@ -49,6 +50,9 @@ private:
     void onMergeClicked();
 
     ChannelPtr sourceChannel_;
+    /// Name to prefill and suggest. For a merged source this is one of
+    /// its sources rather than the combined display name.
+    QString suggestedName_;
     ChannelPtr selectedChannel_;
     std::function<void(ChannelPtr, ChannelPtr)> onMergeCallback_;
     std::function<void(ChannelPtr, ChannelPtr)> onSplitViewCallback_;
@@ -61,7 +65,7 @@ private:
     QComboBox *platformCombo_{nullptr};
     QLineEdit *channelInput_{nullptr};
     QLabel *suggestionLabel_{nullptr};
-    
+
     // Merge type selection
     QLabel *mergeTypeLabel_{nullptr};
     QRadioButton *singleViewRadio_{nullptr};
@@ -69,10 +73,9 @@ private:
     QButtonGroup *mergeTypeGroup_{nullptr};
     QLabel *singleViewDescription_{nullptr};
     QLabel *splitViewDescription_{nullptr};
-    
+
     QPushButton *mergeButton_{nullptr};
     QPushButton *cancelButton_{nullptr};
 };
 
 }  // namespace chatterino
-

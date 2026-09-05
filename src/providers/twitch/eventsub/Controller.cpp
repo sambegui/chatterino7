@@ -13,10 +13,10 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
 #include <boost/certify/https_verification.hpp>
+#include <QDateTime>
+#include <QFile>
 #include <twitch-eventsub-ws/session.hpp>
 
-#include <QFile>
-#include <QDateTime>
 #include <memory>
 #include <utility>
 

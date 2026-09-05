@@ -64,7 +64,8 @@ void KickEmotes::loadGlobalEmotes(std::function<void(bool success)> callback)
             if (reply->error() != QNetworkReply::NoError)
             {
                 qCWarning(chatterinoKick)
-                    << "Failed to load global Kick emotes:" << reply->errorString();
+                    << "Failed to load global Kick emotes:"
+                    << reply->errorString();
                 if (callback)
                 {
                     callback(false);
@@ -100,7 +101,8 @@ void KickEmotes::loadGlobalEmotes(std::function<void(bool success)> callback)
                     QJsonObject emoteObj = emoteVal.toObject();
                     int id = emoteObj["id"].toInt();
                     QString name = emoteObj["name"].toString();
-                    bool subscribersOnly = emoteObj["subscribers_only"].toBool();
+                    bool subscribersOnly =
+                        emoteObj["subscribers_only"].toBool();
 
                     // Skip subscriber-only global emotes
                     if (subscribersOnly)
@@ -114,13 +116,15 @@ void KickEmotes::loadGlobalEmotes(std::function<void(bool success)> callback)
                     }
 
                     // Create emote URL
-                    QString url = QString("https://files.kick.com/emotes/%1/fullsize")
-                                      .arg(id);
+                    QString url =
+                        QString("https://files.kick.com/emotes/%1/fullsize")
+                            .arg(id);
 
                     // Create emote
                     auto emote = std::make_shared<Emote>(Emote{
                         EmoteName{name},
-                        ImageSet{Image::fromUrl({url}, 1.0, KICK_EMOTE_BASE_SIZE)},
+                        ImageSet{
+                            Image::fromUrl({url}, 1.0, KICK_EMOTE_BASE_SIZE)},
                         Tooltip{QString("%1<br>Global Kick Emote").arg(name)},
                         Url{url},
                         false,  // Not zero-width
@@ -243,4 +247,3 @@ void KickEmotes::parseEmoteData(const QByteArray &data, EmoteMap &emoteMap)
 }
 
 }  // namespace chatterino
-

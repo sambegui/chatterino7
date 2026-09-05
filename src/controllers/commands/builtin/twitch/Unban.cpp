@@ -4,6 +4,7 @@
 #include "common/Channel.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
+#include "controllers/commands/builtin/kick/ModerationActions.hpp"
 #include "controllers/commands/CommandContext.hpp"
 #include "controllers/commands/common/ChannelAction.hpp"
 #include "providers/twitch/api/Helix.hpp"
@@ -85,6 +86,12 @@ namespace chatterino::commands {
 
 QString unbanUser(const CommandContext &ctx)
 {
+    // the same command works on Kick, which has its own endpoint
+    if (kickUnban(ctx))
+    {
+        return "";
+    }
+
     const auto command = ctx.words.at(0).toLower();
     const auto usage =
         QStringLiteral(

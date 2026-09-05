@@ -156,8 +156,84 @@ void PubSubClient::handleResponse(const PubSubMessage &message)
     this->nonces_.erase(nonceInfoIt);
 }
 
+/// Wraps an event back up for consumers, which need the topic to tell which
+/// channel it belongs to.
+static QJsonObject makeTopicPayload(const QString &type, const QString &topic,
+                                    const QJsonValue &data)
+{
+    QJsonObject payload;
+    payload["type"] = type;
+    payload["topic"] = topic;
+    payload["data"] = data;
+    return payload;
+}
+
 void PubSubClient::handleMessageResponse(const PubSubMessageMessage &message)
 {
+    if (message.topic.startsWith("pinned-chat-updates-v1."))
+    {
+        auto oInnerMessage =
+            message.toInner<PubSubPinnedChatUpdatesV1Message>();
+        if (!oInnerMessage)
+        {
+            qCDebug(chatterinoPubSub)
+                << "Malformed pinned-chat-updates-v1 message";
+            return;
+        }
+
+        if (oInnerMessage->type ==
+            PubSubPinnedChatUpdatesV1Message::Type::INVALID)
+        {
+            qCDebug(chatterinoPubSub) << "Invalid pinned chat event type:"
+                                      << oInnerMessage->typeString;
+            return;
+        }
+
+        this->manager_.pinnedChat.updated.invoke(makeTopicPayload(
+            oInnerMessage->typeString, message.topic, oInnerMessage->data));
+        return;
+    }
+
+    if (message.topic.startsWith("predictions-channel-v1."))
+    {
+        auto oInnerMessage =
+            message.toInner<PubSubPredictionChannelV1Message>();
+        if (!oInnerMessage)
+        {
+            qCDebug(chatterinoPubSub)
+                << "Malformed predictions-channel-v1 message";
+            return;
+        }
+
+        if (oInnerMessage->type ==
+            PubSubPredictionChannelV1Message::Type::INVALID)
+        {
+            qCDebug(chatterinoPubSub) << "Invalid prediction event type:"
+                                      << oInnerMessage->typeString;
+            return;
+        }
+
+        this->manager_.prediction.updated.invoke(makeTopicPayload(
+            oInnerMessage->typeString, message.topic, oInnerMessage->data));
+        return;
+    }
+
+    if (message.topic.startsWith("polls."))
+    {
+        // polls do not use the {type, data} envelope the other topics do
+        auto type = message.messageObject.value("type").toString();
+        if (type != "POLL_CREATE" && type != "POLL_UPDATE" &&
+            type != "POLL_END")
+        {
+            qCDebug(chatterinoPubSub) << "Invalid poll event type:" << type;
+            return;
+        }
+
+        this->manager_.poll.updated.invoke(makeTopicPayload(
+            type, message.topic, message.messageObject.value("data")));
+        return;
+    }
+
     if (!message.topic.startsWith("community-points-channel-v1."))
     {
         return;

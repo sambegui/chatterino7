@@ -3,6 +3,7 @@
 #include "common/Aliases.hpp"
 #include "common/Channel.hpp"
 #include "messages/Emote.hpp"
+#include "providers/kick/KickApi.hpp"
 #include "providers/kick/KickMessage.hpp"
 
 #include <pajlada/signals/signal.hpp>
@@ -40,12 +41,30 @@ public:
     // Channel interface
     void sendMessage(const QString &message) override;
     bool isMod() const override;
+    bool isVip() const;
+    bool isBroadcaster() const override;
+    bool hasModRights() const override;
+
+    /// The chat restrictions this channel currently has switched on.
+    [[nodiscard]] const KickApi::RoomModes &roomModes() const;
+
+    /// Fires when the chat restrictions change.
+    pajlada::Signals::NoArgSignal roomModesChanged;
     bool canSendMessage() const override;
     bool isLive() const override;
 
     // Kick-specific methods
     void connect();
     void disconnect();
+
+    /// Called by KickChatServer as the shared connection changes state.
+    void onServerConnected();
+    void onServerDisconnected();
+    void onServerError();
+
+    /// Called by KickChatServer when a message arrives for this chatroom.
+    void onMessageReceived(const KickMessage &message);
+
     void reconnect() override;
     [[nodiscard]] KickConnectionState getConnectionState() const;
     [[nodiscard]] QString getChannelSlug() const;
@@ -58,6 +77,7 @@ public:
 
     // API access
     void setApi(std::shared_ptr<KickApi> api);
+    [[nodiscard]] std::shared_ptr<KickApi> api() const;
     void setAccount(std::shared_ptr<KickAccount> account);
 
     // Recent messages (stub - Kick history API not available)
@@ -79,11 +99,13 @@ public:
 
     /// Get available Kick emotes that the user can actually use
     /// This is filtered based on the user's subscription status
-    [[nodiscard]] std::shared_ptr<const EmoteMap> getAvailableKickEmotes() const;
+    [[nodiscard]] std::shared_ptr<const EmoteMap> getAvailableKickEmotes()
+        const;
 
     /// Fetch available emotes from Kick API and filter by user's access
     /// @param callback Called when emotes are loaded (success, count)
-    void fetchAvailableEmotes(std::function<void(bool success, int count)> callback = nullptr);
+    void fetchAvailableEmotes(
+        std::function<void(bool success, int count)> callback = nullptr);
 
     /// Check if user has subscriber access to this channel
     [[nodiscard]] bool hasSubscriberAccess() const;
@@ -98,9 +120,6 @@ public:
     pajlada::Signals::NoArgSignal liveStatusChanged;
 
 private:
-    /// Handle incoming Kick message from WebSocket
-    void onMessageReceived(const KickMessage &message);
-
     /// Update connection state and emit signal
     void setConnectionState(KickConnectionState state);
 
@@ -112,9 +131,6 @@ private:
 
     /// Schedule reconnection with exponential backoff
     void scheduleReconnect();
-
-    /// Add a system message to the channel
-    void addSystemMessage(const QString &text);
 
     /// Parse message content and emotes into message elements
     /// @param builder The MessageBuilder to add elements to
@@ -143,11 +159,12 @@ private:
     int broadcasterUserId_{0};  // Used for REST API (sending messages)
     KickConnectionState connectionState_;
     bool isAuthenticated_{false};
+    KickApi::RoomModes roomModes_;
+    QString userRole_;
     bool isLive_{false};
     QString streamTitle_;
     int viewerCount_{0};
 
-    std::unique_ptr<KickWebSocket> webSocket_;
     std::shared_ptr<KickApi> api_;
     std::shared_ptr<KickAccount> account_;
 

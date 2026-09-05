@@ -46,12 +46,12 @@ Windows users can install Chatterino7 [from Chocolatey](https://chocolatey.org/p
 
 ### Platform Support
 
-| Platform | Status |
-|----------|--------|
-| Windows | Supported |
-| macOS (Universal) | Supported |
-| Linux (AppImage) | Supported |
-| Linux (Flatpak) | Supported |
+| Platform            | Status    |
+| ------------------- | --------- |
+| Windows             | Supported |
+| macOS (Universal)   | Supported |
+| Linux (AppImage)    | Supported |
+| Linux (Flatpak)     | Supported |
 | Linux (Ubuntu .deb) | Supported |
 
 ---
@@ -106,6 +106,7 @@ git submodule update --init --recursive
 ## Acknowledgments
 
 This project is built on top of:
+
 - [Chatterino7](https://github.com/SevenTV/chatterino7) by SevenTV
 - [Chatterino2](https://github.com/Chatterino/chatterino2) by Chatterino Contributors
 

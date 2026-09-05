@@ -1,15 +1,18 @@
 #include "singletons/WindowManager.hpp"
 
 #include "Application.hpp"
+#include "channels/MergedChannel.hpp"
 #include "common/Args.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "debug/AssertInGuiThread.hpp"
-#include "channels/MergedChannel.hpp"
 #include "messages/MessageElement.hpp"
 #include "providers/kick/KickAccount.hpp"
 #include "providers/kick/KickApi.hpp"
 #include "providers/kick/KickChannel.hpp"
+#include "providers/kick/KickChatServer.hpp"
+#include "providers/youtube/YouTubeChannel.hpp"
+#include "providers/youtube/YouTubeChatServer.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
@@ -239,7 +242,9 @@ void WindowManager::updateWordTypeMask()
     flags.set(settings->showBadgesFfz ? MEF::BadgeFfz : MEF::None);
     flags.set(settings->showBadgesBttv ? MEF::BadgeBttv : MEF::None);
     flags.set(settings->showBadgesSevenTV ? MEF::BadgeSevenTV : MEF::None);
-    flags.set(MEF::BadgePlatform);  // Always show platform badges (Twitch/Kick) in merged channels
+    flags.set(
+        MEF::
+            BadgePlatform);  // Always show platform badges (Twitch/Kick) in merged channels
 
     // username
     flags.set(MEF::Username);
@@ -756,6 +761,11 @@ void WindowManager::encodeChannel(IndirectChannel channel, QJsonObject &obj)
             obj.insert("name", channel.get()->getName());
         }
         break;
+        case Channel::Type::YouTube: {
+            obj.insert("type", "youtube");
+            obj.insert("name", channel.get()->getName());
+        }
+        break;
         case Channel::Type::Merged: {
             obj.insert("type", "merged");
             obj.insert("name", channel.get()->getName());
@@ -775,6 +785,10 @@ void WindowManager::encodeChannel(IndirectChannel channel, QJsonObject &obj)
                     else if (source->getType() == Channel::Type::Kick)
                     {
                         sourceObj.insert("type", "kick");
+                    }
+                    else if (source->getType() == Channel::Type::YouTube)
+                    {
+                        sourceObj.insert("type", "youtube");
                     }
                     sourceObj.insert("name", source->getName());
                     sources.append(sourceObj);
@@ -837,7 +851,7 @@ IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
     {
         // Create and connect a Kick channel
         auto kickChannel =
-            std::make_shared<KickChannel>(descriptor.channelName_);
+            getApp()->getKickChatServer()->getOrCreate(descriptor.channelName_);
 
         // Set up account and API if user is logged in to Kick
         auto kickAccount = getApp()->getAccounts()->kick.getCurrent();
@@ -855,6 +869,15 @@ IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
         // Wrap in IndirectChannel with Kick type
         ChannelPtr channel = std::static_pointer_cast<Channel>(kickChannel);
         return IndirectChannel(channel, Channel::Type::Kick);
+    }
+    else if (descriptor.type_ == "youtube")
+    {
+        auto youtubeChannel =
+            getApp()->getYouTubeChatServer()->getOrCreate(descriptor.channelName_);
+        youtubeChannel->connect();
+
+        ChannelPtr channel = std::static_pointer_cast<Channel>(youtubeChannel);
+        return IndirectChannel(channel, Channel::Type::YouTube);
     }
     else if (descriptor.type_ == "merged")
     {
@@ -877,10 +900,18 @@ IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
             {
                 channel = getApp()->getTwitch()->getOrAddChannel(source.name);
             }
+            else if (source.type == "youtube")
+            {
+                auto youtubeChannel =
+                    getApp()->getYouTubeChatServer()->getOrCreate(source.name);
+                youtubeChannel->connect();
+                channel = std::static_pointer_cast<Channel>(youtubeChannel);
+            }
             else if (source.type == "kick")
             {
                 // Create and connect a Kick channel
-                auto kickChannel = std::make_shared<KickChannel>(source.name);
+                auto kickChannel =
+                    getApp()->getKickChatServer()->getOrCreate(source.name);
 
                 // Set up account and API if user is logged in to Kick
                 auto kickAccount = getApp()->getAccounts()->kick.getCurrent();
@@ -906,7 +937,8 @@ IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
         if (sourceChannels.size() < 2)
         {
             qCWarning(chatterinoWindowmanager)
-                << "Cannot restore merged channel: need at least 2 valid source channels";
+                << "Cannot restore merged channel: need at least 2 valid "
+                   "source channels";
             // Return the first valid channel if we have one
             if (!sourceChannels.empty())
             {

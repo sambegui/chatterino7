@@ -651,6 +651,28 @@ public:
     /// Kick Integration
     BoolSetting enableKickIntegration = {"/kick/enabled", false};
 
+    /// YouTube Integration
+    BoolSetting enableYouTubeIntegration = {"/youtube/enabled", false};
+
+    /// Usercard
+    BoolSetting showUsercardNameHistoryButton = {
+        "/usercard/showNameHistoryButton", true};
+
+    /// Pinned messages
+    BoolSetting enablePinnedMessages = {"/pinnedMessages/enabled", true};
+
+    /// Polls and predictions
+    BoolSetting enablePolls = {"/polls/enabled", true};
+    BoolSetting enablePredictions = {"/predictions/enabled", true};
+
+    /// Twitch's private GraphQL API.
+    ///
+    /// Off by default. Reaching it means presenting Twitch's own web client id
+    /// alongside a token, which their Developer Agreement does not allow, so
+    /// nothing here runs unless the user turns it on and supplies a token.
+    BoolSetting enableTwitchGql = {"/twitchGql/enabled", false};
+    QStringSetting twitchGqlToken = {"/twitchGql/token", ""};
+
     /// External tools
     // Streamlink
     BoolSetting streamlinkUseCustomPath = {"/external/streamlink/useCustomPath",

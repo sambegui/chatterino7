@@ -49,13 +49,11 @@ Version::Version()
     , isRunningInRosetta_(runningInRosetta())
 #endif
 {
-    this->fullVersion_ = "Chatterino ";
+    this->fullVersion_ = "Chatterino 69";
     if (Modes::instance().isNightly)
     {
-        this->fullVersion_ += "Nightly ";
+        this->fullVersion_ += " Nightly";
     }
-
-    this->fullVersion_ += this->version_;
 
 #ifndef NDEBUG
     this->fullVersion_ += " DEBUG";
@@ -154,13 +152,13 @@ const QString &Version::runningString() const
 
 void Version::generateBuildString()
 {
-    // e.g. Chatterino 2.3.5 or Chatterino Nightly 2.3.5
-    auto s = this->fullVersion();
+    // e.g. Chatterino 69 or Chatterino 69 Nightly, plus the chatterino7 base version
+    auto s = this->fullVersion() + " (based on chatterino7 " + this->version_ + ")";
 
     // Add commit information
     s +=
         QString(
-            R"( (commit <a href="https://github.com/SevenTV/chatterino7/commit/%1">%1</a>)")
+            R"( (commit <a href="https://github.com/canmenzo/chatterino69/commit/%1">%1</a>)")
             .arg(this->commitHash());
     if (this->isModified())
     {

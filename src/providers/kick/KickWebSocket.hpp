@@ -3,7 +3,6 @@
 #include "providers/kick/KickMessage.hpp"
 
 #include <pajlada/signals/signal.hpp>
-
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -97,4 +96,3 @@ private:
 };
 
 }  // namespace chatterino
-

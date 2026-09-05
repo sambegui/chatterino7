@@ -45,7 +45,8 @@ TEST(KickWebSocket, parsesSubscriptionSucceeded)
     ASSERT_TRUE(doc.isObject());
 
     QJsonObject obj = doc.object();
-    EXPECT_EQ(obj["event"].toString(), "pusher_internal:subscription_succeeded");
+    EXPECT_EQ(obj["event"].toString(),
+              "pusher_internal:subscription_succeeded");
     EXPECT_EQ(obj["channel"].toString(), "chatrooms.12345.v2");
 }
 
@@ -108,4 +109,3 @@ TEST(KickWebSocket, channelNameFormat)
     QString channelName = QString("chatrooms.%1.v2").arg(chatroomId);
     EXPECT_EQ(channelName, "chatrooms.12345.v2");
 }
-

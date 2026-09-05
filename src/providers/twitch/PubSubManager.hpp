@@ -54,6 +54,43 @@ public:
     void listenToChannelPointRewards(const QString &channelID);
 
     struct {
+        /// Carries {type, topic, data}. The event only says a pin changed;
+        /// the pinned message itself has to be fetched separately.
+        Signal<const QJsonObject &> updated;
+    } pinnedChat;
+
+    /**
+     * Listen to pinned message changes in the given channel.
+     *
+     * PubSub topic: pinned-chat-updates-v1.{channelID}
+     */
+    void listenToPinnedChatUpdates(const QString &channelID);
+
+    struct {
+        /// Carries {type, topic, data}, where data holds the whole event.
+        Signal<const QJsonObject &> updated;
+    } prediction;
+
+    /**
+     * Listen to prediction changes in the given channel.
+     *
+     * PubSub topic: predictions-channel-v1.{channelID}
+     */
+    void listenToPredictions(const QString &channelID);
+
+    struct {
+        /// Carries {type, topic, data}, where data holds the whole poll.
+        Signal<const QJsonObject &> updated;
+    } poll;
+
+    /**
+     * Listen to poll changes in the given channel.
+     *
+     * PubSub topic: polls.{channelID}
+     */
+    void listenToPolls(const QString &channelID);
+
+    struct {
         std::atomic<uint32_t> messagesReceived{0};
         std::atomic<uint32_t> messagesFailedToParse{0};
         std::atomic<uint32_t> failedListenResponses{0};

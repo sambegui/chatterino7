@@ -192,8 +192,11 @@ public:
      * @param userName The login name of the user
      * @param alternativePopoutChannel Optional parameter containing the channel name to use for context
      **/
+    /// @param fromKick The clicked message came from Kick, so in a merged
+    ///                  split the popup acts on the Kick channel.
     void showUserInfoPopup(const QString &userName,
-                           QString alternativePopoutChannel = QString());
+                           QString alternativePopoutChannel = QString(),
+                           bool fromKick = false);
 
     /**
      * @brief This method is meant to be used when filtering out channels.

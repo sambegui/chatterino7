@@ -3,6 +3,18 @@
 #include <QRegularExpression>
 #include <QUrl>
 
+namespace {
+
+/// Kick usernames are lowercase alphanumerics and underscores, up to 25 chars.
+bool isValidChannelSlug(const QString &slug)
+{
+    static const QRegularExpression usernameRegex(
+        QStringLiteral("^[a-z0-9_]{1,25}$"));
+    return usernameRegex.match(slug).hasMatch();
+}
+
+}  // namespace
+
 namespace chatterino {
 
 std::optional<UrlParser::KickChannelResult> UrlParser::parseKickChannel(
@@ -19,9 +31,15 @@ std::optional<UrlParser::KickChannelResult> UrlParser::parseKickChannel(
     {
         // Normalize the URL
         QString normalized = trimmed;
-        if (!normalized.startsWith("http://") &&
-            !normalized.startsWith("https://"))
+        if (!normalized.startsWith("http://", Qt::CaseInsensitive) &&
+            !normalized.startsWith("https://", Qt::CaseInsensitive))
         {
+            // a "://" that isn't a scheme we accept is malformed, not something
+            // to prefix over
+            if (normalized.contains("://"))
+            {
+                return std::nullopt;
+            }
             normalized = "https://" + normalized;
         }
 
@@ -52,7 +70,7 @@ std::optional<UrlParser::KickChannelResult> UrlParser::parseKickChannel(
         }
 
         QString slug = normalizeChannelSlug(path);
-        if (slug.isEmpty())
+        if (!isValidChannelSlug(slug))
         {
             return std::nullopt;
         }
@@ -62,11 +80,7 @@ std::optional<UrlParser::KickChannelResult> UrlParser::parseKickChannel(
 
     // Not a URL, treat as plain username
     QString slug = normalizeChannelSlug(trimmed);
-
-    // Validate: username should be alphanumeric with underscores, 3-25 chars
-    static const QRegularExpression usernameRegex(
-        QStringLiteral("^[a-z0-9_]{1,25}$"));
-    if (!usernameRegex.match(slug).hasMatch())
+    if (!isValidChannelSlug(slug))
     {
         return std::nullopt;
     }
@@ -89,4 +103,3 @@ QString UrlParser::normalizeChannelSlug(const QString &slug)
 }
 
 }  // namespace chatterino
-

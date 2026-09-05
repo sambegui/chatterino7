@@ -1,6 +1,7 @@
 #include "widgets/helper/ChannelView.hpp"
 
 #include "Application.hpp"
+#include "channels/MergedChannel.hpp"
 #include "common/Common.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
@@ -18,10 +19,10 @@
 #include "messages/MessageElement.hpp"
 #include "messages/MessageThread.hpp"
 #include "providers/colors/ColorProvider.hpp"
+#include "providers/kick/KickChannel.hpp"
 #include "providers/links/LinkInfo.hpp"
 #include "providers/links/LinkResolver.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
-#include "providers/kick/KickChannel.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Resources.hpp"
@@ -281,6 +282,24 @@ float getTooltipScale(EmoteTooltipScale emoteTooltipScale)
         default:
             return 1.0F;
     }
+}
+
+/// A merged split is not a channel anything can be done to, so an action on a
+/// message has to run against the platform channel that message came from.
+ChannelPtr channelForMessage(const ChannelPtr &channel,
+                             const Message *message)
+{
+    auto *merged = dynamic_cast<MergedChannel *>(channel.get());
+    if (merged == nullptr || message == nullptr)
+    {
+        return channel;
+    }
+
+    auto source =
+        merged->sourceForPlatform(message->flags.has(MessageFlag::Kick)
+                                      ? Channel::Type::Kick
+                                      : Channel::Type::Twitch);
+    return source ? source : channel;
 }
 
 }  // namespace
@@ -1102,8 +1121,7 @@ void ChannelView::setChannel(const ChannelPtr &underlyingChannel)
     }
 
     // Notifications - Kick live status
-    auto *kickChannel =
-        dynamic_cast<KickChannel *>(underlyingChannel.get());
+    auto *kickChannel = dynamic_cast<KickChannel *>(underlyingChannel.get());
     if (kickChannel != nullptr)
     {
         this->channelConnections_.managedConnect(
@@ -2895,6 +2913,7 @@ void ChannelView::addCommandExecutionContextMenuItems(
             {
                 channel = this->underlyingChannel_;
             }
+            channel = channelForMessage(channel, layout->getMessage());
             auto *split = dynamic_cast<Split *>(this->parentWidget());
             QString userText;
             if (split)
@@ -2979,7 +2998,8 @@ void ChannelView::hideEvent(QHideEvent * /*event*/)
 }
 
 void ChannelView::showUserInfoPopup(const QString &userName,
-                                    QString alternativePopoutChannel)
+                                    QString alternativePopoutChannel,
+                                    bool fromKick)
 {
     if (!this->split_)
     {
@@ -2992,10 +3012,27 @@ void ChannelView::showUserInfoPopup(const QString &userName,
     auto *userPopup =
         new UserInfoPopup(getSettings()->autoCloseUserPopup, this->split_);
 
+    // a Kick user is not moderated through Twitch, and the open Twitch channel
+    // that happens to share the streamer's name is not their channel either
     auto contextChannel =
-        getApp()->getTwitch()->getChannelOrEmpty(alternativePopoutChannel);
+        fromKick ? Channel::getEmpty()
+                 : getApp()->getTwitch()->getChannelOrEmpty(
+                       alternativePopoutChannel);
     auto openingChannel = this->hasSourceChannel() ? this->sourceChannel_
                                                    : this->underlyingChannel_;
+
+    // a merged split is not a channel anything can be done to, so act on
+    // whichever platform the clicked message actually came from
+    if (auto *merged = dynamic_cast<MergedChannel *>(openingChannel.get()))
+    {
+        auto source = merged->sourceForPlatform(
+            fromKick ? Channel::Type::Kick : Channel::Type::Twitch);
+        if (source)
+        {
+            openingChannel = source;
+        }
+    }
+
     userPopup->setData(userName, contextChannel, openingChannel);
 
     QPoint offset(userPopup->width() / 3, userPopup->height() / 5);
@@ -3045,7 +3082,9 @@ void ChannelView::handleLinkClick(QMouseEvent *event, const Link &link,
         case Link::UserWhisper:
         case Link::UserInfo: {
             auto user = link.value;
-            this->showUserInfoPopup(user, layout->getMessage()->channelName);
+            this->showUserInfoPopup(
+                user, layout->getMessage()->channelName,
+                layout->getMessage()->flags.has(MessageFlag::Kick));
         }
         break;
 
@@ -3076,6 +3115,7 @@ void ChannelView::handleLinkClick(QMouseEvent *event, const Link &link,
                     channel = split->getChannel();
                 }
             }
+            channel = channelForMessage(channel, layout->getMessage());
 
             // Execute command clicking a moderator button
             value = getApp()->getCommands()->execCustomCommand(

@@ -3,6 +3,7 @@
 #include "Application.hpp"
 #include "common/Channel.hpp"
 #include "controllers/accounts/AccountController.hpp"
+#include "controllers/commands/builtin/kick/ModerationActions.hpp"
 #include "controllers/commands/CommandContext.hpp"
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
@@ -58,6 +59,12 @@ QString deleteAllMessages(const CommandContext &ctx)
 
 QString deleteOneMessage(const CommandContext &ctx)
 {
+    // the same command works on Kick, which has its own endpoint
+    if (kickDeleteMessage(ctx))
+    {
+        return "";
+    }
+
     if (ctx.channel == nullptr)
     {
         return "";

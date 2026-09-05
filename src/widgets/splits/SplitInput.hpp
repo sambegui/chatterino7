@@ -156,6 +156,7 @@ protected:
         QPushButton *platformBothBtn;
         QPushButton *platformTwitchBtn;
         QPushButton *platformKickBtn;
+        QPushButton *platformYouTubeBtn;
         QLabel *platformStatusLabel;
 
         // input widgets

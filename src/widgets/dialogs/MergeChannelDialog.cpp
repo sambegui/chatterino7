@@ -1,10 +1,15 @@
 #include "widgets/dialogs/MergeChannelDialog.hpp"
 
+#include "channels/MergedChannel.hpp"
+
 #include "Application.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "providers/kick/KickAccount.hpp"
 #include "providers/kick/KickApi.hpp"
 #include "providers/kick/KickChannel.hpp"
+#include "providers/kick/KickChatServer.hpp"
+#include "providers/youtube/YouTubeChannel.hpp"
+#include "providers/youtube/YouTubeChatServer.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Settings.hpp"
@@ -15,7 +20,8 @@
 
 namespace chatterino {
 
-MergeChannelDialog::MergeChannelDialog(ChannelPtr sourceChannel, QWidget *parent)
+MergeChannelDialog::MergeChannelDialog(ChannelPtr sourceChannel,
+                                       QWidget *parent)
     : QDialog(parent)
     , sourceChannel_(std::move(sourceChannel))
 {
@@ -55,7 +61,21 @@ void MergeChannelDialog::setupUI()
     QString sourcePlatform;
     QString sourceChannelName = this->sourceChannel_->getName();
 
-    if (dynamic_cast<TwitchChannel *>(this->sourceChannel_.get()))
+    auto *mergedSource =
+        dynamic_cast<MergedChannel *>(this->sourceChannel_.get());
+
+    if (mergedSource != nullptr)
+    {
+        sourcePlatform = "Merged";
+        // A merge shows its own combined name; suggesting a channel to add is
+        // more useful when based on one of its existing sources.
+        const auto &sources = mergedSource->getSourceChannels();
+        if (!sources.empty())
+        {
+            sourceChannelName = sources.front()->getName();
+        }
+    }
+    else if (dynamic_cast<TwitchChannel *>(this->sourceChannel_.get()))
     {
         sourcePlatform = "Twitch";
     }
@@ -63,13 +83,22 @@ void MergeChannelDialog::setupUI()
     {
         sourcePlatform = "Kick";
     }
+    else if (dynamic_cast<YouTubeChannel *>(this->sourceChannel_.get()))
+    {
+        sourcePlatform = "YouTube";
+    }
     else
     {
         sourcePlatform = "Unknown";
     }
 
+    this->suggestedName_ = sourceChannelName;
+
     this->sourceLabel_ = new QLabel(
-        QString("Source: %1 - %2").arg(sourcePlatform, sourceChannelName));
+        mergedSource != nullptr
+            ? QString("Source: %1").arg(this->sourceChannel_->getDisplayName())
+            : QString("Source: %1 - %2").arg(sourcePlatform,
+                                             sourceChannelName));
     this->sourceLabel_->setStyleSheet("font-weight: bold;");
     this->mainLayout_->addWidget(this->sourceLabel_);
 
@@ -80,15 +109,42 @@ void MergeChannelDialog::setupUI()
     auto *platformLayout = new QHBoxLayout();
 
     this->platformCombo_ = new QComboBox();
-    // Only show platforms different from source
-    if (sourcePlatform != "Twitch")
-    {
-        this->platformCombo_->addItem("Twitch", "twitch");
-    }
-    if (sourcePlatform != "Kick" && getSettings()->enableKickIntegration)
-    {
-        this->platformCombo_->addItem("Kick", "kick");
-    }
+
+    // Offer every platform the source does not already carry. For a merge that
+    // means every type not already in it, which is what makes adding YouTube to
+    // a Twitch+Kick split possible.
+    auto alreadyHave = [mergedSource, &sourcePlatform](Channel::Type type,
+                                                       const QString &name) {
+        if (mergedSource != nullptr)
+        {
+            return mergedSource->hasPlatform(type);
+        }
+        return sourcePlatform == name;
+    };
+
+    // A platform that is turned off is still listed, marked so, and offers to
+    // enable itself on merge. Hiding it left the combo empty on a Twitch+Kick
+    // merge with no hint that a third platform was available at all.
+    auto addPlatform = [this](Channel::Type type, const QString &label,
+                              const QString &data, bool present,
+                              bool enabled) {
+        Q_UNUSED(type);
+        if (present)
+        {
+            return;
+        }
+        this->platformCombo_->addItem(
+            enabled ? label : label + "  (enable in settings)", data);
+    };
+
+    addPlatform(Channel::Type::Twitch, "Twitch", "twitch",
+                alreadyHave(Channel::Type::Twitch, "Twitch"), true);
+    addPlatform(Channel::Type::Kick, "Kick", "kick",
+                alreadyHave(Channel::Type::Kick, "Kick"),
+                getSettings()->enableKickIntegration);
+    addPlatform(Channel::Type::YouTube, "YouTube", "youtube",
+                alreadyHave(Channel::Type::YouTube, "YouTube"),
+                getSettings()->enableYouTubeIntegration);
     platformLayout->addWidget(this->platformCombo_);
 
     this->channelInput_ = new QLineEdit();
@@ -115,20 +171,20 @@ void MergeChannelDialog::setupUI()
     // Single view option (combined chat)
     this->singleViewRadio_ = new QRadioButton("Combined view (single panel)");
     this->singleViewRadio_->setChecked(true);
-    this->mergeTypeGroup_->addButton(this->singleViewRadio_,
-                                     static_cast<int>(MergeViewType::SingleView));
+    this->mergeTypeGroup_->addButton(
+        this->singleViewRadio_, static_cast<int>(MergeViewType::SingleView));
     this->mainLayout_->addWidget(this->singleViewRadio_);
 
     this->singleViewDescription_ = new QLabel(
-        "   Messages from both channels interleaved with [T]/[K] indicators");
+        "   Messages interleaved in one panel, each tagged with its platform");
     this->singleViewDescription_->setStyleSheet(
         "color: #888; font-size: 11px; margin-left: 20px;");
     this->mainLayout_->addWidget(this->singleViewDescription_);
 
     // Split view option (side-by-side)
     this->splitViewRadio_ = new QRadioButton("Side-by-side view (two panels)");
-    this->mergeTypeGroup_->addButton(this->splitViewRadio_,
-                                     static_cast<int>(MergeViewType::SplitView));
+    this->mergeTypeGroup_->addButton(
+        this->splitViewRadio_, static_cast<int>(MergeViewType::SplitView));
     this->mainLayout_->addWidget(this->splitViewRadio_);
 
     this->splitViewDescription_ = new QLabel(
@@ -165,7 +221,11 @@ void MergeChannelDialog::setupUI()
 
 void MergeChannelDialog::updateSuggestion()
 {
-    QString sourceChannelName = this->sourceChannel_->getName().toLower();
+    QString sourceChannelName = this->suggestedName_.isEmpty()
+                                    ? this->sourceChannel_->getName()
+                                    : this->suggestedName_;
+    QString suggestedDisplay = sourceChannelName;
+    sourceChannelName = sourceChannelName.toLower();
     QString inputText = this->channelInput_->text().trimmed().toLower();
 
     if (inputText.isEmpty())
@@ -174,19 +234,21 @@ void MergeChannelDialog::updateSuggestion()
         this->suggestionLabel_->setText(
             QString("Suggestion: Try '%1' (same username)")
                 .arg(sourceChannelName));
-        this->channelInput_->setText(this->sourceChannel_->getName());
+        this->channelInput_->setText(suggestedDisplay);
     }
     else if (inputText == sourceChannelName)
     {
         this->suggestionLabel_->setText("✓ Matching username detected");
-        this->suggestionLabel_->setStyleSheet("color: #53fc18; font-style: italic;");
+        this->suggestionLabel_->setStyleSheet(
+            "color: #53fc18; font-style: italic;");
     }
     else
     {
         this->suggestionLabel_->setText(
             QString("Note: Merging '%1' with '%2'")
-                .arg(this->sourceChannel_->getName(), inputText));
-        this->suggestionLabel_->setStyleSheet("color: #888; font-style: italic;");
+                .arg(suggestedDisplay, inputText));
+        this->suggestionLabel_->setStyleSheet(
+            "color: #888; font-style: italic;");
     }
 }
 
@@ -203,16 +265,67 @@ void MergeChannelDialog::onMergeClicked()
 
     QString platform = this->platformCombo_->currentData().toString();
 
+    if (platform.isEmpty())
+    {
+        QMessageBox::warning(
+            this, "Nothing left to merge",
+            "This split already carries every platform you have enabled.\n\n"
+            "Enable another platform in Settings > Platforms to add one.");
+        return;
+    }
+
+    // Turning the platform on here keeps the merge flow going instead of
+    // sending the user to the settings page and back.
+    auto ensureEnabled = [this](BoolSetting &setting, const QString &name) {
+        if (setting)
+        {
+            return true;
+        }
+
+        QMessageBox box;
+        box.setWindowTitle(QString("%1 Integration Disabled").arg(name));
+        box.setText(QString("%1 integration is currently disabled. Would you "
+                            "like to enable it?")
+                        .arg(name));
+        box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        box.setDefaultButton(QMessageBox::Yes);
+        if (box.exec() != QMessageBox::Yes)
+        {
+            return false;
+        }
+        setting.setValue(true);
+        return true;
+    };
+
+    if (platform == "kick" &&
+        !ensureEnabled(getSettings()->enableKickIntegration, "Kick"))
+    {
+        return;
+    }
+    if (platform == "youtube" &&
+        !ensureEnabled(getSettings()->enableYouTubeIntegration, "YouTube"))
+    {
+        return;
+    }
+
     // Get or create the target channel
     if (platform == "twitch")
     {
         this->selectedChannel_ =
             getApp()->getTwitch()->getOrAddChannel(targetChannelName);
     }
+    else if (platform == "youtube")
+    {
+        auto youtubeChannel =
+            getApp()->getYouTubeChatServer()->getOrCreate(targetChannelName);
+        youtubeChannel->connect();
+        this->selectedChannel_ = ChannelPtr(youtubeChannel);
+    }
     else if (platform == "kick")
     {
         // Create KickChannel with account and API for sending messages
-        auto kickChannel = std::make_shared<KickChannel>(targetChannelName);
+        auto kickChannel =
+            getApp()->getKickChatServer()->getOrCreate(targetChannelName);
 
         // Set up authentication from current Kick account
         auto kickAccount = getApp()->getAccounts()->kick.getCurrent();
@@ -243,7 +356,8 @@ void MergeChannelDialog::onMergeClicked()
             this->onMergeCallback_)
         {
             // Combined view - create a MergedChannel
-            this->onMergeCallback_(this->sourceChannel_, this->selectedChannel_);
+            this->onMergeCallback_(this->sourceChannel_,
+                                   this->selectedChannel_);
         }
         else if (this->mergeViewType_ == MergeViewType::SplitView &&
                  this->onSplitViewCallback_)
@@ -258,4 +372,3 @@ void MergeChannelDialog::onMergeClicked()
 }
 
 }  // namespace chatterino
-

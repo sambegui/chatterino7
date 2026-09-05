@@ -523,7 +523,8 @@ void Image::actuallyLoad()
     NetworkRequest(this->url().string)
         .concurrent()
         .cache()
-        .timeout(60000)  // 60 second timeout for large images (like animated GIFs)
+        .timeout(
+            60000)  // 60 second timeout for large images (like animated GIFs)
         .onSuccess([weak](auto result) {
             auto shared = weak.lock();
             if (!shared)

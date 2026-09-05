@@ -10,16 +10,16 @@ namespace chatterino {
 
 /// Badge information for a Kick user
 struct KickBadge {
-    QString type;   // "broadcaster", "moderator", "subscriber", "vip", etc.
-    QString text;   // Display text
-    int count{0};   // For subscriber badges (months)
+    QString type;  // "broadcaster", "moderator", "subscriber", "vip", etc.
+    QString text;  // Display text
+    int count{0};  // For subscriber badges (months)
 
     static KickBadge fromJson(const QJsonObject &json);
 };
 
 /// User identity information from Kick
 struct KickIdentity {
-    QString color;                   // Hex color (e.g., "#FF5733")
+    QString color;  // Hex color (e.g., "#FF5733")
     std::vector<KickBadge> badges;
 
     static KickIdentity fromJson(const QJsonObject &json);
@@ -52,10 +52,10 @@ struct KickEmote {
 
 /// Raw Kick message structure (maps to Pusher WebSocket event payload)
 struct KickMessage {
-    QString id;           // Message ID (ULID format)
+    QString id;  // Message ID (ULID format)
     int chatroomId{0};
-    QString content;      // Message text
-    QString type;         // "message", "subscription", "gifted-subscriptions", etc.
+    QString content;  // Message text
+    QString type;     // "message", "subscription", "gifted-subscriptions", etc.
     QDateTime createdAt;  // ISO 8601 timestamp
     KickSender sender;
     std::vector<KickEmote> emotes;  // Emotes with positions
@@ -70,4 +70,3 @@ struct KickMessage {
 };
 
 }  // namespace chatterino
-

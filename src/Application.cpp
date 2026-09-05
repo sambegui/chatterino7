@@ -15,6 +15,8 @@
 #include "providers/bttv/BttvBadges.hpp"
 #include "providers/bttv/BttvEmotes.hpp"
 #include "providers/ffz/FfzEmotes.hpp"
+#include "providers/kick/KickChatServer.hpp"
+#include "providers/youtube/YouTubeChatServer.hpp"
 #include "providers/kick/KickEmotes.hpp"
 #include "providers/links/LinkResolver.hpp"
 #include "providers/pronouns/Pronouns.hpp"
@@ -201,6 +203,8 @@ Application::Application(Settings &_settings, const Paths &paths,
     , bttvLiveUpdates(makeBttvLiveUpdates(_settings))
     , ffzEmotes(new FfzEmotes)
     , kickEmotes(new KickEmotes)
+    , kickChatServer(new KickChatServer)
+    , youtubeChatServer(new YouTubeChatServer)
     , seventvEmotes(new SeventvEmotes)
     , seventvEventAPI(makeSeventvEventAPI(_settings))
     , linkResolver(new LinkResolver)
@@ -629,6 +633,20 @@ KickEmotes *Application::getKickEmotes()
     assert(this->kickEmotes);
 
     return this->kickEmotes.get();
+}
+
+KickChatServer *Application::getKickChatServer()
+{
+    assertInGuiThread();
+
+    return this->kickChatServer.get();
+}
+
+YouTubeChatServer *Application::getYouTubeChatServer()
+{
+    assertInGuiThread();
+
+    return this->youtubeChatServer.get();
 }
 
 SeventvEmotes *Application::getSeventvEmotes()

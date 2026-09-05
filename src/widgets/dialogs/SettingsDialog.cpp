@@ -11,6 +11,12 @@
 #include "widgets/helper/SettingsDialogTab.hpp"
 #include "widgets/settingspages/AboutPage.hpp"
 #include "widgets/settingspages/AccountsPage.hpp"
+#include "widgets/settingspages/AdvancedPage.hpp"
+#include "widgets/settingspages/AppearancePage.hpp"
+#include "widgets/settingspages/ChatPage.hpp"
+#include "widgets/settingspages/EmotesPage.hpp"
+#include "widgets/settingspages/PlatformsPage.hpp"
+#include "widgets/settingspages/StreamerModePage.hpp"
 #include "widgets/settingspages/CommandPage.hpp"
 #include "widgets/settingspages/ExternalToolsPage.hpp"
 #include "widgets/settingspages/FiltersPage.hpp"
@@ -238,20 +244,32 @@ void SettingsDialog::addTabs()
     // Constructors are wrapped in std::function to remove some strain from first time loading.
 
     // clang-format off
+    // Look & feel
     this->addTab([]{return new GeneralPage;},          "General",        ":/settings/about.svg", SettingsTabId::General);
+    this->addTab([]{return new AppearancePage;},       "Appearance",     ":/settings/appearance.svg");
+    this->addTab([]{return new ChatPage;},             "Chat",           ":/settings/chat.svg");
+    this->addTab([]{return new EmotesPage;},           "Emotes",         ":/settings/emotes.svg");
     this->ui_.tabContainer->addSpacing(16);
+    // Who you are
     this->addTab([]{return new AccountsPage;},         "Accounts",       ":/settings/accounts.svg", SettingsTabId::Accounts);
     this->addTab([]{return new NicknamesPage;},        "Nicknames",      ":/settings/accounts.svg");
+    this->addTab([]{return new PlatformsPage;},        "Platforms",      ":/settings/platforms.svg");
     this->ui_.tabContainer->addSpacing(16);
-    this->addTab([]{return new CommandPage;},          "Commands",       ":/settings/commands.svg");
+    // What you see
     this->addTab([]{return new HighlightingPage;},     "Highlights",     ":/settings/notifications.svg");
+    this->addTab([]{return new NotificationPage;},     "Live Notifications",  ":/settings/notification2.svg");
     this->addTab([]{return new IgnoresPage;},          "Ignores",        ":/settings/ignore.svg");
     this->addTab([]{return new FiltersPage;},          "Filters",        ":/settings/filters.svg");
     this->ui_.tabContainer->addSpacing(16);
+    // What you can do
+    this->addTab([]{return new CommandPage;},          "Commands",       ":/settings/commands.svg");
     this->addTab([]{return new KeyboardSettingsPage;}, "Hotkeys",        ":/settings/keybinds.svg");
     this->addTab([]{return new ModerationPage;},       "Moderation",     ":/settings/moderation.svg", SettingsTabId::Moderation);
-    this->addTab([]{return new NotificationPage;},     "Live Notifications",  ":/settings/notification2.svg");
+    this->addTab([]{return new StreamerModePage;},     "Streamer Mode",  ":/settings/streamermode.svg");
+    this->ui_.tabContainer->addSpacing(16);
+    // Under the hood
     this->addTab([]{return new ExternalToolsPage;},    "External tools", ":/settings/externaltools.svg");
+    this->addTab([]{return new AdvancedPage;},         "Advanced",       ":/settings/advanced.svg");
 #ifdef CHATTERINO_HAVE_PLUGINS
     this->addTab([]{return new PluginsPage;},          "Plugins",        ":/settings/plugins.svg");
 #endif

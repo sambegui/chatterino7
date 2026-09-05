@@ -77,6 +77,8 @@ enum class MessageFlag : std::int64_t {
     Kick = (1LL << 44),
     /// The message is from the Twitch platform (used in merged channels)
     Twitch = (1LL << 45),
+    /// The message is from the YouTube platform (used in merged channels)
+    YouTube = (1LL << 46),
 };
 using MessageFlags = FlagsEnum<MessageFlag>;
 

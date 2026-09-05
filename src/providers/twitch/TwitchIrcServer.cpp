@@ -250,6 +250,64 @@ void TwitchIrcServer::initialize()
                 }
             });
         });
+
+    this->signalHolder.managedConnect(
+        getApp()->getTwitchPubSub()->pinnedChat.updated, [this](auto &data) {
+            this->forwardToChannelByTopic(
+                QLatin1StringView("pinned-chat-updates-v1."), data,
+                [](TwitchChannel *channel, const QJsonObject &payload) {
+                    channel->handlePinnedChatUpdate(payload);
+                });
+        });
+
+    this->signalHolder.managedConnect(
+        getApp()->getTwitchPubSub()->poll.updated, [this](auto &data) {
+            this->forwardToChannelByTopic(
+                QLatin1StringView("polls."), data,
+                [](TwitchChannel *channel, const QJsonObject &payload) {
+                    channel->handlePollUpdate(payload);
+                });
+        });
+
+    this->signalHolder.managedConnect(
+        getApp()->getTwitchPubSub()->prediction.updated, [this](auto &data) {
+            this->forwardToChannelByTopic(
+                QLatin1StringView("predictions-channel-v1."), data,
+                [](TwitchChannel *channel, const QJsonObject &payload) {
+                    channel->handlePredictionUpdate(payload);
+                });
+        });
+}
+
+void TwitchIrcServer::forwardToChannelByTopic(
+    QLatin1StringView prefix, const QJsonObject &payload,
+    const std::function<void(TwitchChannel *, const QJsonObject &)> &handler)
+{
+    auto topic = payload.value("topic").toString();
+    if (!topic.startsWith(prefix))
+    {
+        return;
+    }
+
+    auto channelId = topic.mid(prefix.size());
+    if (channelId.isEmpty())
+    {
+        return;
+    }
+
+    auto chan = this->getChannelOrEmptyByID(channelId);
+
+    postToThread([chan, payload, handler] {
+        if (isAppAboutToQuit())
+        {
+            return;
+        }
+
+        if (auto *channel = dynamic_cast<TwitchChannel *>(chan.get()))
+        {
+            handler(channel, payload);
+        }
+    });
 }
 
 void TwitchIrcServer::aboutToQuit()

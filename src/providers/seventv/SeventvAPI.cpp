@@ -75,15 +75,16 @@ void SeventvAPI::getUserByKickID(
         {
             return;  // Already pending or cached
         }
-        this->kickUserCache_[kickUserID] = KickUserCacheEntry{std::nullopt, true};
+        this->kickUserCache_[kickUserID] =
+            KickUserCacheEntry{std::nullopt, true};
     }
 
     // 7TV supports Kick channels via https://7tv.io/v3/users/KICK/{user_id}
     // Note: Returns a "connection" object, not the full user profile
     NetworkRequest(API_URL_USER_KICK.arg(kickUserID), NetworkRequestType::Get)
         .timeout(20000)
-        .onSuccess([this, kickUserID,
-                    callback = std::move(onSuccess)](const NetworkResult &result) {
+        .onSuccess([this, kickUserID, callback = std::move(onSuccess)](
+                       const NetworkResult &result) {
             auto json = result.parseJson();
 
             // Cache the successful result
@@ -122,7 +123,8 @@ void SeventvAPI::getUserByID(const QString &seventvUserID,
 {
     // Direct 7TV user lookup: https://7tv.io/v3/users/{user_id}
     // Returns full user profile including style with paint
-    QString url = QStringLiteral("https://7tv.io/v3/users/%1").arg(seventvUserID);
+    QString url =
+        QStringLiteral("https://7tv.io/v3/users/%1").arg(seventvUserID);
     NetworkRequest(url, NetworkRequestType::Get)
         .timeout(20000)
         .onSuccess(
@@ -154,7 +156,8 @@ void SeventvAPI::getCosmetics(const QStringList &ids,
     requestBody["query"] = QStringLiteral(
         "query Cosmetics($list: [ObjectID!]) { "
         "cosmetics(list: $list) { "
-        "badges { id name tooltip host { url files { name format width height } } } "
+        "badges { id name tooltip host { url files { name format width height "
+        "} } } "
         "paints { id name function color angle repeat stops { at color } "
         "shadows { x_offset y_offset radius color } image_url } "
         "} }");

@@ -16,9 +16,11 @@
 #include "providers/IvrApi.hpp"
 #include "providers/pronouns/Pronouns.hpp"
 #include "providers/twitch/api/Helix.hpp"
+#include "providers/twitch/api/TwitchGql.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
+#include "providers/twitch/TwitchNameHistory.hpp"
 #include "singletons/Resources.hpp"
 #include "singletons/Settings.hpp"
 #include "singletons/StreamerMode.hpp"
@@ -46,6 +48,7 @@
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QFile>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMetaEnum>
 #include <QMovie>
@@ -475,6 +478,9 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
             .assign(&this->ui_.notesAdd);
         auto usercard = user.emplace<LabelButton>("Usercard", this)
                             .assign(&this->ui_.usercardLabel);
+        auto names = user.emplace<LabelButton>("Names", this)
+                         .assign(&this->ui_.nameHistory);
+        names->setVisible(false);
         auto mod = user.emplace<PixmapButton>(this);
         mod->setPixmap(getResources().buttons.mod);
         mod->setScaleIndependentSize(30, 30);
@@ -494,6 +500,10 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
             QDesktopServices::openUrl("https://www.twitch.tv/popout/" +
                                       this->underlyingChannel_->getName() +
                                       "/viewercard/" + this->userName_);
+        });
+
+        QObject::connect(names.getElement(), &Button::leftClicked, [this] {
+            this->showNameHistoryMenu();
         });
 
         QObject::connect(mod.getElement(), &Button::leftClicked, [this] {
@@ -565,21 +575,11 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
         // we only connect once
         std::ignore =
             this->userStateChanged_.connect([this, lineMod, timeout]() mutable {
-                TwitchChannel *twitchChannel = dynamic_cast<TwitchChannel *>(
-                    this->underlyingChannel_.get());
+                // hasModRights is virtual, so this covers Kick as well
+                bool visible = this->underlyingChannel_ != nullptr &&
+                               this->underlyingChannel_->hasModRights() &&
+                               !this->isMyself();
 
-                bool visible = false;
-                if (twitchChannel)
-                {
-                    bool isMyself =
-                        getApp()
-                            ->getAccounts()
-                            ->twitch.getCurrent()
-                            ->getUserName()
-                            .compare(this->userName_, Qt::CaseInsensitive) == 0;
-                    bool hasModRights = twitchChannel->hasModRights();
-                    visible = hasModRights && !isMyself;
-                }
                 lineMod->setVisible(visible);
                 timeout->setVisible(visible);
             });
@@ -649,9 +649,17 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
         this->ui_.latestMessages->setSizePolicy(QSizePolicy::Expanding,
                                                 QSizePolicy::Expanding);
 
+        this->ui_.loadMore = new LabelButton("Load older messages", this);
+        this->ui_.loadMore->setVisible(false);
+        QObject::connect(this->ui_.loadMore, &Button::leftClicked, [this] {
+            this->loadMoreMessages();
+        });
+
         logs->addWidget(this->ui_.noMessagesLabel);
         logs->addWidget(this->ui_.latestMessages);
+        logs->addWidget(this->ui_.loadMore);
         logs->setAlignment(this->ui_.noMessagesLabel, Qt::AlignHCenter);
+        logs->setAlignment(this->ui_.loadMore, Qt::AlignHCenter);
     }
 
     // size grip
@@ -961,9 +969,8 @@ void UserInfoPopup::updateUserData()
         this->ui_.userIDLabel->setProperty("copy-text", this->userName_);
 
         // Use the Kick platform icon as avatar for Kick users
-        this->ui_.avatarButton->setPixmap(
-            getResources().platforms.kick.scaled(64, 64, Qt::KeepAspectRatio,
-                                                  Qt::SmoothTransformation));
+        this->ui_.avatarButton->setPixmap(getResources().platforms.kick.scaled(
+            64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
         // Hide Twitch-specific UI elements for Kick users
         this->ui_.localizedNameLabel->setVisible(false);
@@ -1011,6 +1018,8 @@ void UserInfoPopup::updateUserData()
         }
 
         this->userId_ = user.id;
+        this->updateNameHistoryButton();
+        this->updateLoadMoreButton();
         this->helixAvatarUrl_ = user.profileImageUrl;
         this->updateAvatarUrl();
         this->updateNotes();
@@ -1502,6 +1511,21 @@ void UserInfoPopup::TimeoutWidget::paintEvent(QPaintEvent *)
     //    / 2);
 }
 
+bool UserInfoPopup::isMyself() const
+{
+    // whichever account this channel belongs to is the one to compare against
+    if (this->underlyingChannel_ != nullptr &&
+        this->underlyingChannel_->getType() == Channel::Type::Kick)
+    {
+        auto username = getApp()->getAccounts()->kick.getCurrentUsername();
+        return !username.isEmpty() &&
+               username.compare(this->userName_, Qt::CaseInsensitive) == 0;
+    }
+
+    return getApp()->getAccounts()->twitch.getCurrent()->getUserName().compare(
+               this->userName_, Qt::CaseInsensitive) == 0;
+}
+
 void UserInfoPopup::updateAvatarUrl()
 {
     if (this->isTwitchAvatarShown_)
@@ -1512,6 +1536,201 @@ void UserInfoPopup::updateAvatarUrl()
     {
         this->avatarUrl_ = this->seventvAvatarUrl_;
     }
+}
+
+void UserInfoPopup::updateNameHistoryButton()
+{
+    if (this->ui_.nameHistory == nullptr)
+    {
+        return;
+    }
+
+    // name history is Twitch only, and needs the id we resolve asynchronously
+    this->ui_.nameHistory->setVisible(
+        getSettings()->showUsercardNameHistoryButton &&
+        !this->userId_.isEmpty());
+}
+
+void UserInfoPopup::updateLoadMoreButton()
+{
+    if (this->ui_.loadMore == nullptr)
+    {
+        return;
+    }
+
+    auto *twitch =
+        dynamic_cast<TwitchChannel *>(this->underlyingChannel_.get());
+
+    // this reads the channel's mod log, so it needs both the private API and
+    // mod rights here
+    this->ui_.loadMore->setVisible(
+        gql::isEnabled() && !this->userId_.isEmpty() && twitch != nullptr &&
+        twitch->hasModRights() && this->messagesHaveNextPage_ &&
+        !this->messagesLoading_);
+}
+
+void UserInfoPopup::loadMoreMessages()
+{
+    auto *twitch =
+        dynamic_cast<TwitchChannel *>(this->underlyingChannel_.get());
+    if (twitch == nullptr || this->userId_.isEmpty() || this->messagesLoading_)
+    {
+        return;
+    }
+
+    this->messagesLoading_ = true;
+    this->ui_.loadMore->setText("Loading...");
+
+    QPointer<UserInfoPopup> guard(this);
+    auto requestedFor = this->userId_;
+
+    gql::usercardMessages(
+        twitch->roomId(), this->userId_, this->messagesCursor_,
+        [guard, requestedFor](const gql::UsercardMessagePage &page) {
+            // the popup may have moved to another user while this was in flight
+            if (!guard || guard->userId_ != requestedFor)
+            {
+                return;
+            }
+
+            guard->messagesLoading_ = false;
+            guard->messagesCursor_ = page.nextCursor;
+            guard->messagesHaveNextPage_ =
+                page.hasNextPage && !page.nextCursor.isEmpty();
+            guard->ui_.loadMore->setText("Load older messages");
+
+            auto channel = guard->ui_.latestMessages->channel();
+            if (!channel)
+            {
+                guard->updateLoadMoreButton();
+                return;
+            }
+
+            // Twitch returns newest first, and these go above what is shown
+            std::vector<MessagePtr> older;
+            older.reserve(page.messages.size());
+            for (auto it = page.messages.crbegin(); it != page.messages.crend();
+                 ++it)
+            {
+                MessageBuilder builder;
+                builder.message().serverReceivedTime =
+                    QDateTime::fromString(it->sentAt, Qt::ISODateWithMs);
+                builder.emplace<TimestampElement>(
+                    builder.message().serverReceivedTime.time());
+                builder
+                    .emplace<TextElement>(
+                        guard->userName_ + ":", MessageElementFlag::Username,
+                        MessageColor::System, FontStyle::ChatMediumBold)
+                    ->setLink({Link::UserInfo, guard->userName_});
+                builder.emplace<TextElement>(it->text,
+                                             MessageElementFlag::Text);
+                if (it->isDeleted)
+                {
+                    builder.message().flags.set(MessageFlag::Disabled);
+                }
+
+                older.push_back(builder.release());
+            }
+
+            if (!older.empty())
+            {
+                channel->addMessagesAtStart(older);
+                guard->ui_.latestMessages->setVisible(true);
+                guard->ui_.noMessagesLabel->setVisible(false);
+            }
+
+            guard->updateLoadMoreButton();
+        },
+        [guard](const QString &error) {
+            if (!guard)
+            {
+                return;
+            }
+            guard->messagesLoading_ = false;
+            guard->ui_.loadMore->setText("Load older messages");
+            guard->underlyingChannel_->addSystemMessage(
+                "Could not load older messages: " + error);
+            guard->updateLoadMoreButton();
+        });
+
+    this->updateLoadMoreButton();
+}
+
+void UserInfoPopup::showNameHistoryMenu()
+{
+    if (this->userId_.isEmpty())
+    {
+        return;
+    }
+
+    auto *menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    auto show = [menu, this](const QString &text) {
+        menu->clear();
+        menu->addAction(text)->setEnabled(false);
+        if (menu->isVisible())
+        {
+            menu->adjustSize();
+        }
+        else
+        {
+            menu->popup(QCursor::pos());
+        }
+    };
+
+    auto render = [menu, show](const TwitchNameHistory &history) {
+        if (history.entries.empty())
+        {
+            show("No name history found");
+            return;
+        }
+
+        menu->clear();
+        for (const auto &entry : history.entries)
+        {
+            auto *action =
+                menu->addAction(entry.login + " (" + entry.firstSeen + " to " +
+                                entry.lastSeen + ")");
+            QObject::connect(action, &QAction::triggered,
+                             [login = entry.login] {
+                                 crossPlatformCopy(login);
+                             });
+        }
+
+        if (menu->isVisible())
+        {
+            menu->adjustSize();
+        }
+        else
+        {
+            menu->popup(QCursor::pos());
+        }
+    };
+
+    if (auto cached = getCachedTwitchNameHistory(this->userId_))
+    {
+        render(*cached);
+        return;
+    }
+
+    show("Fetching name history...");
+
+    QPointer<QMenu> guard(menu);
+    fetchTwitchNameHistory(
+        this->userId_, this->userName_,
+        [guard, render](const TwitchNameHistory &history) {
+            if (guard)
+            {
+                render(history);
+            }
+        },
+        [guard, show](const QString &error) {
+            if (guard)
+            {
+                show("Name history unavailable: " + error);
+            }
+        });
 }
 
 }  // namespace chatterino

@@ -98,4 +98,37 @@ void PubSub::listenToChannelPointRewards(const QString &channelID)
     this->private_->subscribe(TopicData{.topic = std::move(topic)});
 }
 
+void PubSub::listenToPinnedChatUpdates(const QString &channelID)
+{
+    static const QString topicFormat("pinned-chat-updates-v1.%1");
+    assert(!channelID.isEmpty());
+
+    auto topic = topicFormat.arg(channelID);
+
+    qCDebug(chatterinoPubSub) << "Listen to topic" << topic;
+    this->private_->subscribe(TopicData{.topic = std::move(topic)});
+}
+
+void PubSub::listenToPredictions(const QString &channelID)
+{
+    static const QString topicFormat("predictions-channel-v1.%1");
+    assert(!channelID.isEmpty());
+
+    auto topic = topicFormat.arg(channelID);
+
+    qCDebug(chatterinoPubSub) << "Listen to topic" << topic;
+    this->private_->subscribe(TopicData{.topic = std::move(topic)});
+}
+
+void PubSub::listenToPolls(const QString &channelID)
+{
+    static const QString topicFormat("polls.%1");
+    assert(!channelID.isEmpty());
+
+    auto topic = topicFormat.arg(channelID);
+
+    qCDebug(chatterinoPubSub) << "Listen to topic" << topic;
+    this->private_->subscribe(TopicData{.topic = std::move(topic)});
+}
+
 }  // namespace chatterino

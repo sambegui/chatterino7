@@ -1,11 +1,11 @@
 #pragma once
 
 #include <pajlada/signals/signal.hpp>
-
 #include <QDateTime>
 #include <QObject>
 #include <QString>
 #include <QTcpServer>
+#include <QTimer>
 
 #include <memory>
 #include <optional>
@@ -54,8 +54,12 @@ public:
         "https://id.kick.com/oauth/authorize";
     static constexpr const char *KICK_TOKEN_URL =
         "https://id.kick.com/oauth/token";
-    static constexpr const char *REDIRECT_URI = "http://localhost:52847/callback";
+    static constexpr const char *REDIRECT_URI =
+        "http://localhost:52847/callback";
     static constexpr int LOCAL_SERVER_PORT = 52847;
+
+    /// How long to wait for the browser round trip before giving up
+    static constexpr int AUTH_TIMEOUT_MS = 300000;
 
 private Q_SLOTS:
     void onNewConnection();
@@ -95,8 +99,8 @@ private:
 
     // Server for OAuth callback
     std::unique_ptr<QTcpServer> localServer_;
+    QTimer timeoutTimer_;
     bool isInProgress_{false};
 };
 
 }  // namespace chatterino
-

@@ -76,6 +76,23 @@ public:
     /// Get the current account
     [[nodiscard]] std::shared_ptr<KickAccount> getAccount() const;
 
+    /// The chat restrictions a Kick channel has switched on.
+    struct RoomModes {
+        bool subscribersOnly{false};
+        bool emotesOnly{false};
+        /// Seconds between messages, 0 when slow mode is off.
+        int slowModeInterval{0};
+        /// Minutes a viewer must have followed for, 0 when the mode is off.
+        int followersOnlyDuration{0};
+
+        [[nodiscard]] bool any() const
+        {
+            return this->subscribersOnly || this->emotesOnly ||
+                   this->slowModeInterval > 0 ||
+                   this->followersOnlyDuration > 0;
+        }
+    };
+
     /// Channel info resolved from Kick API
     struct ChannelInfo {
         int broadcasterUserId{0};
@@ -85,6 +102,10 @@ public:
         bool isLive{false};
         QString streamTitle;
         int viewerCount{0};
+        RoomModes roomModes;
+        /// The current user's role here: "moderator", "vip", "broadcaster" or
+        /// empty. Only set when the request carried a token.
+        QString userRole;
         bool success{false};
     };
 
@@ -108,6 +129,26 @@ public:
     /// @param callback Called with the result
     void sendMessage(int broadcasterUserId, const QString &message,
                      std::function<void(KickApiResult result)> callback);
+
+    /// Ban or time out a user.
+    /// (POST /public/v1/moderation/bans, needs the moderation:ban scope)
+    /// @param broadcasterUserId The channel being moderated
+    /// @param userId The user to act on
+    /// @param durationMinutes Omit for a permanent ban, set for a timeout
+    /// @param reason Optional, shown in Kick's mod log
+    void banUser(int broadcasterUserId, int userId,
+                 std::optional<int> durationMinutes, const QString &reason,
+                 std::function<void(KickApiResult result)> callback);
+
+    /// Lift a ban or timeout.
+    /// (DELETE /public/v1/moderation/bans, needs the moderation:ban scope)
+    void unbanUser(int broadcasterUserId, int userId,
+                   std::function<void(KickApiResult result)> callback);
+
+    /// Delete a single chat message.
+    /// (DELETE /public/v1/chat/{messageId}, needs the chat:write scope)
+    void deleteChatMessage(const QString &messageId,
+                           std::function<void(KickApiResult result)> callback);
 
     /// Get current rate limit info
     [[nodiscard]] KickRateLimitInfo getRateLimitInfo() const;
@@ -142,7 +183,8 @@ public:
     struct UserRoleResult {
         bool success{false};
         QString channelSlug;
-        QString role;  // empty = no role, "subscriber", "moderator", "broadcaster", etc.
+        QString
+            role;  // empty = no role, "subscriber", "moderator", "broadcaster", etc.
         bool isSubscribed{false};  // true if role indicates subscription access
         QString errorMessage;
     };
@@ -175,6 +217,15 @@ private:
 
     /// Refresh token if expired and retry request
     void refreshAndRetry(std::function<void()> retryFn);
+
+    /// Shared path for the moderation endpoints: checks auth and the rate
+    /// limit, refreshes an expired token, then runs the request and translates
+    /// the reply. @a retry re-runs the whole call after a token refresh.
+    void sendAuthorizedRequest(
+        const QByteArray &verb, const QString &endpoint,
+        const std::optional<QJsonObject> &body,
+        std::function<void(KickApiResult result)> callback,
+        std::function<void()> retry);
 
     std::unique_ptr<QNetworkAccessManager> networkManager_;
     std::shared_ptr<KickAccount> account_;

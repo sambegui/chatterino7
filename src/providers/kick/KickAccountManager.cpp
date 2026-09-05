@@ -48,8 +48,12 @@ void KickAccountManager::startLogin()
 {
     if (this->oauthFlow_ && this->oauthFlow_->isInProgress())
     {
-        qCWarning(chatterinoKick) << "OAuth flow already in progress";
-        return;
+        // A previous attempt never got its callback (browser tab closed, Kick
+        // errored out before redirecting, ...). Clicking login again means the
+        // user wants to retry, so drop the stale flow instead of ignoring them.
+        qCDebug(chatterinoKick)
+            << "Discarding an OAuth flow that never completed";
+        this->oauthFlow_->cancel();
     }
 
     this->oauthFlow_ = std::make_unique<KickOAuthFlow>();

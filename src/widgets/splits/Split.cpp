@@ -28,6 +28,7 @@
 #include "widgets/helper/NotebookTab.hpp"
 #include "widgets/helper/ResizingTextEdit.hpp"
 #include "widgets/helper/SearchPopup.hpp"
+#include "widgets/helper/SplitBanners.hpp"
 #include "widgets/Notebook.hpp"
 #include "widgets/OverlayWindow.hpp"
 #include "widgets/Scrollbar.hpp"
@@ -89,6 +90,7 @@ Split::Split(QWidget *parent)
     , view_(new ChannelView(this, this, ChannelView::Context::None,
                             getSettings()->scrollbackSplitLimit))
     , input_(new SplitInput(this))
+    , banners_(new SplitBanners(this))
     , overlay_(new SplitOverlay(this))
 {
     this->setMouseTracking(true);
@@ -100,6 +102,7 @@ Split::Split(QWidget *parent)
     this->vbox_->setContentsMargins(1, 1, 1, 1);
 
     this->vbox_->addWidget(this->header_);
+    this->vbox_->addWidget(this->banners_);
     this->vbox_->addWidget(this->view_, 1);
     this->vbox_->addWidget(this->input_);
 
@@ -846,6 +849,13 @@ void Split::setChannel(IndirectChannel newChannel)
         });
     }
 
+    if (auto *kc = dynamic_cast<KickChannel *>(newChannel.get().get()))
+    {
+        this->roomModeChangedConnection_ = kc->roomModesChanged.connect([this] {
+            this->header_->updateRoomModes();
+        });
+    }
+
     this->indirectChannelChangedConnection_ =
         newChannel.getChannelChanged().connect([this] {
             QTimer::singleShot(0, [this] {
@@ -856,6 +866,7 @@ void Split::setChannel(IndirectChannel newChannel)
     this->header_->updateIcons();
     this->header_->updateChannelText();
     this->header_->updateRoomModes();
+    this->banners_->setChannel(newChannel.get());
 
     this->channelSignalHolder_.managedConnect(
         this->channel_.get()->displayNameChanged, [this] {

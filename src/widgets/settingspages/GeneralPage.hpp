@@ -1,34 +1,21 @@
 #pragma once
 
-#include "widgets/settingspages/SettingsPage.hpp"
-
-class QLabel;
-class QCheckBox;
-class QComboBox;
+#include "widgets/settingspages/ScrollableSettingsPage.hpp"
 
 namespace chatterino {
 
 class GeneralPageView;
-class DescriptionLabel;
-struct DropdownArgs;
 
-class GeneralPage : public SettingsPage
+/// Look-and-feel basics: theme, font, zoom, window and tab behaviour.
+class GeneralPage : public ScrollableSettingsPage
 {
     Q_OBJECT
 
 public:
     GeneralPage();
 
-    bool filterElements(const QString &query) override;
-
 private:
-    void initLayout(GeneralPageView &layout);
-    void initExtra();
-
-    QString getFont(const DropdownArgs &args) const;
-
-    DescriptionLabel *cachePath_{};
-    GeneralPageView *view_{};
+    void initLayout(GeneralPageView &layout) override;
 };
 
 }  // namespace chatterino

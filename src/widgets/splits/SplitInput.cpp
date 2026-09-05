@@ -88,9 +88,19 @@ SplitInput::SplitInput(QWidget *parent, Split *_chatWidget,
             this->ui_.platformBothBtn->setChecked(true);
             this->ui_.platformTwitchBtn->setChecked(false);
             this->ui_.platformKickBtn->setChecked(false);
+            this->ui_.platformYouTubeBtn->setChecked(false);
 
             if (auto *merged = dynamic_cast<MergedChannel *>(channel.get()))
             {
+                // Only offer the platforms this merge actually carries, so a
+                // Twitch+YouTube split does not show a dead Kick button.
+                this->ui_.platformTwitchBtn->setVisible(
+                    merged->hasPlatform(Channel::Type::Twitch));
+                this->ui_.platformKickBtn->setVisible(
+                    merged->hasPlatform(Channel::Type::Kick));
+                this->ui_.platformYouTubeBtn->setVisible(
+                    merged->hasPlatform(Channel::Type::YouTube));
+
                 merged->setPlatformSelection(PlatformSelection::Both);
             }
         }
@@ -178,69 +188,65 @@ void SplitInput::initLayout()
     platformHbox->setSpacing(4);
 
     this->ui_.platformStatusLabel = new QLabel("Send to:");
-    this->ui_.platformStatusLabel->setStyleSheet("color: #888; font-size: 11px;");
+    this->ui_.platformStatusLabel->setStyleSheet(
+        "color: #888; font-size: 11px;");
     platformHbox->addWidget(this->ui_.platformStatusLabel);
 
-    this->ui_.platformBothBtn = new QPushButton("Both");
-    this->ui_.platformBothBtn->setCheckable(true);
+    auto makePlatformButton = [&](const QString &label,
+                                  const QString &checkedCss) {
+        auto *button = new QPushButton(label);
+        button->setCheckable(true);
+        button->setFixedHeight(22);
+        button->setStyleSheet(
+            "QPushButton { background: #444; border: 1px solid #666; "
+            "border-radius: 3px; padding: 2px 8px; }"
+            "QPushButton:checked { " +
+            checkedCss +
+            " }"
+            "QPushButton:hover { background: #555; }");
+        platformHbox->addWidget(button);
+        return button;
+    };
+
+    this->ui_.platformBothBtn =
+        makePlatformButton("Both", "background: #53fc18; color: #000;");
     this->ui_.platformBothBtn->setChecked(true);
-    this->ui_.platformBothBtn->setFixedHeight(22);
-    this->ui_.platformBothBtn->setStyleSheet(
-        "QPushButton { background: #444; border: 1px solid #666; border-radius: 3px; padding: 2px 8px; }"
-        "QPushButton:checked { background: #53fc18; color: #000; }"
-        "QPushButton:hover { background: #555; }");
-    platformHbox->addWidget(this->ui_.platformBothBtn);
-
-    this->ui_.platformTwitchBtn = new QPushButton("Twitch");
-    this->ui_.platformTwitchBtn->setCheckable(true);
-    this->ui_.platformTwitchBtn->setFixedHeight(22);
-    this->ui_.platformTwitchBtn->setStyleSheet(
-        "QPushButton { background: #444; border: 1px solid #666; border-radius: 3px; padding: 2px 8px; }"
-        "QPushButton:checked { background: #9146ff; color: #fff; }"
-        "QPushButton:hover { background: #555; }");
-    platformHbox->addWidget(this->ui_.platformTwitchBtn);
-
-    this->ui_.platformKickBtn = new QPushButton("Kick");
-    this->ui_.platformKickBtn->setCheckable(true);
-    this->ui_.platformKickBtn->setFixedHeight(22);
-    this->ui_.platformKickBtn->setStyleSheet(
-        "QPushButton { background: #444; border: 1px solid #666; border-radius: 3px; padding: 2px 8px; }"
-        "QPushButton:checked { background: #53fc18; color: #000; }"
-        "QPushButton:hover { background: #555; }");
-    platformHbox->addWidget(this->ui_.platformKickBtn);
+    this->ui_.platformTwitchBtn =
+        makePlatformButton("Twitch", "background: #9146ff; color: #fff;");
+    this->ui_.platformKickBtn =
+        makePlatformButton("Kick", "background: #53fc18; color: #000;");
+    this->ui_.platformYouTubeBtn =
+        makePlatformButton("YouTube", "background: #ff0000; color: #fff;");
 
     platformHbox->addStretch();
 
     // Connect platform buttons to update MergedChannel selection
-    QObject::connect(this->ui_.platformBothBtn, &QPushButton::clicked, [this]() {
-        this->ui_.platformBothBtn->setChecked(true);
-        this->ui_.platformTwitchBtn->setChecked(false);
-        this->ui_.platformKickBtn->setChecked(false);
-        if (auto *merged = dynamic_cast<MergedChannel *>(this->split_->getChannel().get()))
-        {
-            merged->setPlatformSelection(PlatformSelection::Both);
-        }
-    });
+    auto bindPlatformButton = [this](QPushButton *button,
+                                     PlatformSelection selection) {
+        QObject::connect(button, &QPushButton::clicked, [this, selection]() {
+            this->ui_.platformBothBtn->setChecked(
+                selection == PlatformSelection::Both);
+            this->ui_.platformTwitchBtn->setChecked(
+                selection == PlatformSelection::TwitchOnly);
+            this->ui_.platformKickBtn->setChecked(
+                selection == PlatformSelection::KickOnly);
+            this->ui_.platformYouTubeBtn->setChecked(
+                selection == PlatformSelection::YouTubeOnly);
 
-    QObject::connect(this->ui_.platformTwitchBtn, &QPushButton::clicked, [this]() {
-        this->ui_.platformBothBtn->setChecked(false);
-        this->ui_.platformTwitchBtn->setChecked(true);
-        this->ui_.platformKickBtn->setChecked(false);
-        if (auto *merged = dynamic_cast<MergedChannel *>(this->split_->getChannel().get()))
-        {
-            merged->setPlatformSelection(PlatformSelection::TwitchOnly);
-        }
-    });
+            if (auto *merged = dynamic_cast<MergedChannel *>(
+                    this->split_->getChannel().get()))
+            {
+                merged->setPlatformSelection(selection);
+            }
+        });
+    };
 
-    QObject::connect(this->ui_.platformKickBtn, &QPushButton::clicked, [this]() {
-        this->ui_.platformBothBtn->setChecked(false);
-        this->ui_.platformTwitchBtn->setChecked(false);
-        this->ui_.platformKickBtn->setChecked(true);
-        if (auto *merged = dynamic_cast<MergedChannel *>(this->split_->getChannel().get()))
-        {
-            merged->setPlatformSelection(PlatformSelection::KickOnly);
-        }
-    });
+    bindPlatformButton(this->ui_.platformBothBtn, PlatformSelection::Both);
+    bindPlatformButton(this->ui_.platformTwitchBtn,
+                       PlatformSelection::TwitchOnly);
+    bindPlatformButton(this->ui_.platformKickBtn, PlatformSelection::KickOnly);
+    bindPlatformButton(this->ui_.platformYouTubeBtn,
+                       PlatformSelection::YouTubeOnly);
 
     // Hide platform selector by default (shown only for merged channels)
     this->ui_.platformWrapper->hide();

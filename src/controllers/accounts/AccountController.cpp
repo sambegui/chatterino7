@@ -46,8 +46,7 @@ AccountController::AccountController()
                 // Find and remove from our accounts_ list
                 // Note: The item has already been removed from kick.accounts
                 // so we search in accounts_ instead
-                auto accountPtr =
-                    std::dynamic_pointer_cast<Account>(args.item);
+                auto accountPtr = std::dynamic_pointer_cast<Account>(args.item);
                 if (accountPtr)
                 {
                     const auto &accs = this->accounts_.raw();

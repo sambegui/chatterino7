@@ -50,6 +50,8 @@ public:
         TwitchEnd,
         /// Kick
         Kick,
+        /// YouTube
+        YouTube,
         /// Merged (combines multiple channels from different platforms)
         Merged,
         /// Misc
